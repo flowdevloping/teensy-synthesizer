@@ -2,6 +2,9 @@
 
 GUI for Audio Module + functionality to test sounds
 
+![Setup Teensy Monophone](GUI.png)
+
+
 ## About this application
 
 This application lets you experiment with various synthesis methods that can be designed in the Teensy Audio Design Tool, as this tool does not provide audio preview (or prelistening).  
@@ -25,6 +28,7 @@ At the moment the use of the Synth Mode "FM" was successfully tested (approved).
 Other methods are also supported, but not tested yet. 
 
 [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html) (to see what is possible with our setup)
+
 [Teensy Audio Design Tool](https://www.pjrc.com/teensy/gui/)
 
 ### Further Information
@@ -35,7 +39,7 @@ Still the synth modes which are applicable in this application are supported by 
 ## Installation
 
 ```powershell
-cd laptop-files-teensy-audiotest
+cd audio-module-project
 python -m venv venv # Create virtual environment
 .\venv\Scripts\activate
 pip install -r requirements.txt
@@ -81,6 +85,8 @@ requirements.txt        Python modules needed to use this application
 
 Here you can see the first setup i tried on the Teensy, which implements monophone FM synthesis: 
 Setup Teensy Monophone
+![Setup Teensy Monophone](visuals/FM-Setup-monophone.png)
 
 And here the second setup, where i added polyphonic functionality (dont get confused by the different visualisation tool i used, it was just more comfortable to use):
-Setup Teensy Polyphone
+![Setup Teensy Polyphone](visuals/FM-Setup-polyphone.png)
+
