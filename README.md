@@ -36,21 +36,68 @@ Other methods are also supported, but not tested yet.
 When using the GUI application with audio playback on your local device the python libraries sounddevice and numpy are used instead of the Teensy Audio Library. 
 Still the synth modes which are applicable in this application are supported by the Teensy Audio library and you can get a better understanding of how the sounds you create will sound. 
 
+## Clone the repository
+
+```bash
+git clone https://github.tik.uni-stuttgart.de/st200539/audio-module-project.git
+cd audio-module-project
+```
+
 ## Installation
 
+Choose the instructions for your operating system.
+
+### Windows
+
 ```powershell
-cd audio-module-project
 python -m venv venv # Create virtual environment
 .\venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-
-
-## Start
+Start:
 
 ```powershell
 python Scripts\app.py
+```
+
+### macOS
+
+```bash
+python3 -m venv venv # Create virtual environment
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Start:
+
+```bash
+python Scripts/app.py
+```
+
+> Note: If you get a Tkinter error, install Python from [python.org](https://www.python.org/downloads/) or via Homebrew (`brew install python-tk`), as the built-in macOS Python may lack Tk support.
+
+### Linux (Debian / Ubuntu)
+
+Install the required system libraries first (Tkinter, PortAudio, MIDI build tools):
+
+```bash
+sudo apt update
+sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound2-dev
+```
+
+Then set up the project:
+
+```bash
+python3 -m venv venv # Create virtual environment
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Start:
+
+```bash
+python Scripts/app.py
 ```
 
 
