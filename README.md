@@ -36,7 +36,7 @@ Still the synth modes which are applicable in this application are supported by 
 ## Installation
 
 ```powershell
-cd laptop-files-teensy-audiotest
+cd audio-module-project
 python -m venv venv # Create virtual environment
 .\venv\Scripts\activate
 pip install -r requirements.txt
