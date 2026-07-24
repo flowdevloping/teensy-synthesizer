@@ -2,7 +2,7 @@
 
 GUI for Audio Module + functionality to test sounds
 
-![Setup Teensy Monophone](GUI.png)
+![Setup Teensy Monophone](visuals/GUI.png)
 
 
 ## About this application
