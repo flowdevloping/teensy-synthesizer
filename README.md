@@ -2,6 +2,9 @@
 
 GUI for Audio Module + functionality to test sounds
 
+![Setup Teensy Monophone](GUI.png)
+
+
 ## About this application
 
 This application lets you experiment with various synthesis methods that can be designed in the Teensy Audio Design Tool, as this tool does not provide audio preview (or prelistening).  
