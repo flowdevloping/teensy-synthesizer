@@ -40,7 +40,6 @@ Still the synth modes which are applicable in this application are supported by 
 
 ```bash
 git clone https://github.tik.uni-stuttgart.de/st200539/audio-module-project.git
-cd audio-module-project
 ```
 
 ## Installation
@@ -50,6 +49,7 @@ Choose the instructions for your operating system.
 ### Windows
 
 ```powershell
+cd audio-module-project
 python -m venv venv # Create virtual environment
 .\venv\Scripts\activate
 pip install -r requirements.txt
