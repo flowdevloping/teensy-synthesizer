@@ -3,7 +3,7 @@ Contains functionality to save latest settings
 """
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
@@ -22,6 +22,7 @@ class AppConfig:
     last_port: str | None = None
     last_midi_port: str | None = None
     auto_reconnect: bool = True
+    key_frequencies: dict[str, float] = field(default_factory=dict)
     modulator_hz: float = 20.0
     modulator_mode: str = "fixed"
     modulator_ratio: float = 1.0
@@ -47,6 +48,10 @@ def load_config() -> AppConfig:
         last_port=data.get("last_port"),
         last_midi_port=data.get("last_midi_port"),
         auto_reconnect=bool(data.get("auto_reconnect", True)),
+        key_frequencies={
+            str(k): float(v)
+            for k, v in (data.get("key_frequencies") or {}).items()
+        },
         modulator_hz=clamp_modulator_hz(float(data.get("modulator_hz", 20.0))),
         modulator_mode=str(data.get("modulator_mode", "fixed")),
         modulator_ratio=clamp_modulator_ratio(float(data.get("modulator_ratio", 1.0))),
@@ -65,6 +70,7 @@ def save_config(config: AppConfig) -> None:
         "last_port": config.last_port,
         "last_midi_port": config.last_midi_port,
         "auto_reconnect": config.auto_reconnect,
+        "key_frequencies": config.key_frequencies,
         "modulator_hz": config.modulator_hz,
         "modulator_mode": config.modulator_mode,
         "modulator_ratio": config.modulator_ratio,

@@ -41,6 +41,9 @@ class Voice:
 @dataclass
 class SynthState:
     synth_mode: str = "fm"
+    key_frequencies: dict[str, float] = field(
+        default_factory=lambda: dict(KEYBOARD_MAPPING) # lambda function to create a new dict for every instance of SynthState
+    )
     carrier_hz: float | None = None
     modulator_hz: float = 20.0
     modulator_mode: str = "fixed"

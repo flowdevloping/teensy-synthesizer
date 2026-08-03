@@ -93,8 +93,13 @@ class SynthApp(ctk.CTk):
         # Migrate legacy checkbox flag to dedicated Pure Sine mode
         if initial_mode == "fm" and self.config.pure_sine_test:
             initial_mode = "pure_sine"
+        
+        key_freqs = dict(KEYBOARD_MAPPING)              
+        key_freqs.update(self.config.key_frequencies)    
+
         self.synth_state = SynthState(
             synth_mode=initial_mode,
+            key_frequencies=key_freqs,
             modulator_hz=self.config.modulator_hz,
             modulator_mode=self.config.modulator_mode,
             modulator_ratio=self.config.modulator_ratio,
@@ -110,6 +115,7 @@ class SynthApp(ctk.CTk):
         self._midi_connect_in_progress = False
         self._pressed_keys: set[str] = set()
         self._note_buttons: dict[str, ctk.CTkButton] = {}
+        self._key_freq_entries: dict[str, ctk.CTkEntry] = {}
         self._note_button_default_color: str | tuple[str, str] | None = None
 
         self._build_ui()
@@ -313,20 +319,37 @@ class SynthApp(ctk.CTk):
         keyboard_frame = ctk.CTkFrame(controls_frame, fg_color="transparent")
         keyboard_frame.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="ew")
 
-        for index, (note_name, (_, frequency_hz)) in enumerate(NOTE_MAPPING.items()):
-            key_label = KEYBOARD_NOTE_KEYS[index].upper()
+        for index, (key, frequency_hz) in enumerate(self.synth_state.key_frequencies.items()):
+            key_label = key.upper()
             button = ctk.CTkButton(
                 keyboard_frame,
-                text=f"{key_label}\n{note_name}\n{frequency_hz:.2f} Hz",
+                text=f"{key_label}\n{frequency_hz:.2f} Hz",
                 width=72,
-                command=lambda nid=note_name, freq=frequency_hz: self._note_on(
-                    nid, freq
+                command=lambda k=key: self._note_on(
+                    k, self.synth_state.key_frequencies[k]
                 ),
             )
             button.grid(row=0, column=index, padx=4, pady=4)
-            self._note_buttons[KEYBOARD_NOTE_KEYS[index]] = button
+            self._note_buttons[key] = button
             if self._note_button_default_color is None:
                 self._note_button_default_color = button.cget("fg_color")
+
+            entry = ctk.CTkEntry(keyboard_frame, width=72, justify="center")
+            entry.insert(0, f"{frequency_hz:.2f}")
+            entry.grid(row=1, column=index, padx=4, pady=(0, 4))
+            entry.bind("<Return>", lambda _event, k=key: self._commit_key_frequency(k))
+            entry.bind("<FocusOut>", lambda _event, k=key: self._commit_key_frequency(k))
+            self._key_freq_entries[key] = entry
+
+        key_count = len(self.synth_state.key_frequencies)
+        ctk.CTkButton(
+            keyboard_frame,
+            text="Reset frequencies",
+            width=120,
+            fg_color="gray30",
+            hover_color="gray40",
+            command=self._reset_key_frequencies,
+        ).grid(row=2, column=0, columnspan=max(key_count, 1), padx=4, pady=(4, 0), sticky="w")
 
         ctk.CTkLabel(
             controls_frame,
@@ -845,6 +868,34 @@ class SynthApp(ctk.CTk):
         elif self._note_button_default_color is not None:
             button.configure(fg_color=self._note_button_default_color)
 
+    # Applies a manually edited frequency for a keyboard key
+    def _commit_key_frequency(self, key: str) -> None:
+        entry = self._key_freq_entries[key]
+        raw = entry.get().strip().replace(",", ".")
+        try:
+            value = float(raw)
+        except ValueError:
+            self._set_entry_text(entry, self.synth_state.key_frequencies[key], 2)
+            return
+        value = max(20.0, min(20000.0, value))
+        self.synth_state.key_frequencies[key] = value
+        self._set_entry_text(entry, value, 2)
+        self._note_buttons[key].configure(text=f"{key.upper()}\n{value:.2f} Hz")
+        self._save_config()
+
+    # Restores the default keyboard key -> frequency mapping
+    def _reset_key_frequencies(self) -> None:
+        self.synth_state.key_frequencies = dict(KEYBOARD_MAPPING)
+        for key, freq in self.synth_state.key_frequencies.items():
+            entry = self._key_freq_entries.get(key)
+            if entry is not None:
+                self._set_entry_text(entry, freq, 2)
+            button = self._note_buttons.get(key)
+            if button is not None:
+                button.configure(text=f"{key.upper()}\n{freq:.2f} Hz")
+        self._save_config()
+        self._log("Keyboard frequencies reset to default")
+
     # Adjusts the volume
     def _adjust_volume(self, delta: int) -> None:
         new_volume = clamp_volume_pct(self.synth_state.volume_pct + delta)
@@ -862,7 +913,7 @@ class SynthApp(ctk.CTk):
                 return
             self._pressed_keys.add(key)
             self._set_note_button_pressed(key, True)
-            self._note_on(key, KEYBOARD_MAPPING[key])
+            self._note_on(key, self.synth_state.key_frequencies[key])
             return
 
         keysym = getattr(event, "keysym", "")
@@ -906,6 +957,7 @@ class SynthApp(ctk.CTk):
 
     # Saves the configuration
     def _save_config(self) -> None:
+        self.config.key_frequencies = dict(self.synth_state.key_frequencies)
         self.config.modulator_hz = self.synth_state.modulator_hz
         self.config.modulator_mode = self.synth_state.modulator_mode
         self.config.modulator_ratio = self.synth_state.modulator_ratio
