@@ -7,7 +7,15 @@ GUI for Audio Module + functionality to test sounds
 
 ## About this application
 
-This application lets you experiment with various synthesis methods that can be designed in the Teensy Audio Design Tool, as this tool does not provide audio preview (or prelistening).  
+This application lets you experiment with various synthesis methods that can be put together in the Teensy Audio Design Tool. It includes a GUI to configure synthesis method and parameters. At the moment you can choose between the Synthesis modes: 
+- FM (approved on AM)
+- Pure Sine (approved on AM)
+- Additive
+- Subtractive
+- Wavetable
+- Granular
+
+Every Synthesis Mode includes presets of parameter configurations which you can try out. You can also adjust the parameters manually.
 
 ## Requirements
 
@@ -22,7 +30,7 @@ This application lets you experiment with various synthesis methods that can be 
 ### To use Audio Module (Teensy + Amplifier + Speaker):
 
 Currently the Audio Module use is in a prototype state.
-So please consult Flo, before doing that the first time: [florian.purschke@ms.informatik.uni-stuttgart.de](mailto:florian.purschke@ms.informatik.uni-stuttgart.de) (preferably via Teams) 
+So please consult Flo, before using the physical Audio Module for the first time: [florian.purschke@ms.informatik.uni-stuttgart.de](mailto:florian.purschke@ms.informatik.uni-stuttgart.de) (preferably via Teams) 
 
 At the moment the use of the Synth Mode "FM" was successfully tested (approved).
 Other methods are also supported, but not tested yet. 
@@ -99,8 +107,6 @@ Start:
 ```bash
 python Scripts/app.py
 ```
-
-
 
 ## Project Structure
 
