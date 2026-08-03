@@ -345,23 +345,9 @@ class SynthApp(ctk.CTk):
         ctk.CTkLabel(sound_header, text="Sound Synthesis", font=ctk.CTkFont(size=15, weight="bold")).grid(
             row=0, column=0, sticky="w"
         )
-        self.preset_value_label = ctk.CTkLabel(
-            sound_header,
-            text=f"Preset: {self.synth_state.active_preset}",
-            text_color="gray70",
-        )
-        self.preset_value_label.grid(row=0, column=1, sticky="e")
-
-        self.preset_description_label = ctk.CTkLabel(
-            sound_frame,
-            text="Choose synthesis mode",
-            text_color="gray70",
-            anchor="w",
-        )
-        self.preset_description_label.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="ew")
 
         mode_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        mode_frame.grid(row=2, column=0, padx=12, pady=(0, 8), sticky="ew")
+        mode_frame.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="ew")
         ctk.CTkLabel(mode_frame, text="Synthesis Mode").grid(row=0, column=0, padx=(0, 8), sticky="w")
         self.synth_mode_var = ctk.StringVar(value=MODE_LABELS[self.synth_state.synth_mode])
         self.synth_mode_switch = ctk.CTkSegmentedButton(
@@ -373,9 +359,10 @@ class SynthApp(ctk.CTk):
         self.synth_mode_switch.grid(row=0, column=1, sticky="w")
 
         self.mode_preset_buttons_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.mode_preset_buttons_frame.grid(row=3, column=0, padx=12, pady=(0, 4), sticky="ew")
+        self.mode_preset_buttons_frame.grid(row=2, column=0, padx=12, pady=(0, 4), sticky="ew")
+
         self.mode_panels_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.mode_panels_frame.grid(row=4, column=0, padx=12, pady=(0, 8), sticky="ew")
+        self.mode_panels_frame.grid(row=5, column=0, padx=12, pady=(0, 8), sticky="ew")
         self.mode_panels_frame.grid_columnconfigure(0, weight=1)
         self.mode_panels: dict[str, ctk.CTkFrame] = {}
         self._build_mode_panels()
@@ -383,9 +370,9 @@ class SynthApp(ctk.CTk):
         self.volume_label = ctk.CTkLabel(
             sound_frame, text=f"Volume: {self.synth_state.volume_pct} %"
         )
-        self.volume_label.grid(row=5, column=0, padx=12, pady=(8, 4), sticky="w")
+        self.volume_label.grid(row=6, column=0, padx=12, pady=(8, 4), sticky="w")
         volume_controls = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        volume_controls.grid(row=6, column=0, padx=12, pady=(0, 8), sticky="ew")
+        volume_controls.grid(row=7, column=0, padx=12, pady=(0, 8), sticky="ew")
         volume_controls.grid_columnconfigure(0, weight=1)
         self.volume_slider = ctk.CTkSlider(
             volume_controls, from_=0, to=MAX_VOLUME_PCT, number_of_steps=MAX_VOLUME_PCT,
@@ -437,7 +424,7 @@ class SynthApp(ctk.CTk):
             sound_frame,
             text=f"Safety limits: Volume max. {MAX_VOLUME_PCT} %",
             text_color="gray60", anchor="w",
-        ).grid(row=7, column=0, padx=12, pady=(0, 12), sticky="ew")
+        ).grid(row=8, column=0, padx=12, pady=(0, 12), sticky="ew")
 
         log_frame = ctk.CTkFrame(self)
         log_frame.grid(row=2, column=0, padx=16, pady=(0, 16), sticky="ew")
@@ -459,12 +446,14 @@ class SynthApp(ctk.CTk):
         fm = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
         fm.grid_columnconfigure(0, weight=1)
         self.mode_panels["fm"] = fm
-        ctk.CTkLabel(fm, text="Modulator mode").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        modulator_mode_row = ctk.CTkFrame(fm, fg_color="transparent")
+        modulator_mode_row.grid(row=0, column=0, columnspan=2, sticky="w")
+        ctk.CTkLabel(modulator_mode_row, text="Modulator mode").grid(row=0, column=0, padx=(0, 8), sticky="w")
         self.modulator_mode_var = ctk.StringVar(
             value="Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz"
         )
         self.modulator_mode_switch = ctk.CTkSegmentedButton(
-            fm,
+            modulator_mode_row,
             values=["Fix Hz", "Ratio"],
             variable=self.modulator_mode_var,
             command=self._on_modulator_mode_changed,
@@ -521,16 +510,6 @@ class SynthApp(ctk.CTk):
             self.mod_depth_slider, self.mod_depth_entry,
             0, MAX_MOD_DEPTH_PCT, self._on_mod_depth_changed, decimals=0,
         )
-
-        pure_sine = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
-        self.mode_panels["pure_sine"] = pure_sine
-        ctk.CTkLabel(
-            pure_sine,
-            text="Pure carrier sine without FM modulation (approved on Teensy).",
-            text_color="gray70",
-            anchor="w",
-            wraplength=720,
-        ).grid(row=0, column=0, sticky="ew", pady=(4, 4))
 
         additive = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
         additive.grid_columnconfigure(0, weight=1)
@@ -715,26 +694,37 @@ class SynthApp(ctk.CTk):
 
     # Shows the synthesis mode panel
     def _show_mode_panel(self) -> None:
+        has_panel = False
         for mode, panel in self.mode_panels.items():
             if mode == self.synth_state.synth_mode:
                 panel.grid(row=0, column=0, sticky="ew")
+                has_panel = True
             else:
                 panel.grid_remove()
+        # Empty CTkFrames keep their default 200px size, so hide the panel
+        # container when the current mode has no parameter panel (e.g. Pure Sine).
+        if has_panel:
+            self.mode_panels_frame.grid()
+        else:
+            self.mode_panels_frame.grid_remove()
+
         presets = MODE_PRESETS.get(self.synth_state.synth_mode, {})
-        active = presets.get(self.synth_state.active_preset)
-        self.preset_value_label.configure(text=f"Preset: {self.synth_state.active_preset}")
-        self.preset_description_label.configure(
-            text=active.description if active else "Manually adjusted sound"
-        )
+
         for child in self.mode_preset_buttons_frame.winfo_children():
             child.destroy()
-        for index, preset_name in enumerate(presets):
-            ctk.CTkButton(
-                self.mode_preset_buttons_frame, text=preset_name, width=90,
-                command=lambda name=preset_name: self._apply_preset(name),
-            ).grid(row=index // 3, column=index % 3, padx=3, pady=2, sticky="ew")
-        for column in range(3):
-            self.mode_preset_buttons_frame.grid_columnconfigure(column, weight=1)
+        if presets:
+            self.mode_preset_buttons_frame.grid()
+            for index, preset_name in enumerate(presets):
+                ctk.CTkButton(
+                    self.mode_preset_buttons_frame, text=preset_name, width=90,
+                    command=lambda name=preset_name: self._apply_preset(name),
+                ).grid(row=index // 3, column=index % 3, padx=3, pady=2, sticky="ew")
+            for column in range(3):
+                self.mode_preset_buttons_frame.grid_columnconfigure(column, weight=1)
+        else:
+            # No presets for this mode: hide the empty preset frame and labels
+            # to avoid the large 200px gap from an empty CTkFrame.
+            self.mode_preset_buttons_frame.grid_remove()
 
     # Refreshes the setup list in the UI
     def _refresh_setup_list(self) -> None:
@@ -1342,16 +1332,7 @@ class SynthApp(ctk.CTk):
             text=f"Modulator depth (FM intensity): {self.synth_state.mod_depth_pct} %"
         )
         self._sync_param_entries()
-        self.preset_value_label.configure(
-            text=f"Preset: {self.synth_state.active_preset}"
-        )
         presets = MODE_PRESETS.get(self.synth_state.synth_mode, {})
-        if self.synth_state.active_preset in presets:
-            self.preset_description_label.configure(
-                text=presets[self.synth_state.active_preset].description
-            )
-        else:
-            self.preset_description_label.configure(text="Manually adjusted sound")
 
         if self.synth_state.connected and self.synth_state.port:
             self.status_label.configure(text=f"Status: Connected ({self.synth_state.port})")

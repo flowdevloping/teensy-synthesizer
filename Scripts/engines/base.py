@@ -92,8 +92,8 @@ SYNTH_MODES = ("fm", "pure_sine", "additive", "subtractive", "wavetable", "granu
 
 # Dictionary of synth mode labels
 MODE_LABELS = {
-    "fm": "FM (approved on Teensy)",
-    "pure_sine": "Pure Sine",
+    "fm": "FM (approved on AM)",
+    "pure_sine": "Pure Sine (approved on AM)",
     "additive": "Additive",
     "subtractive": "Subtractive",
     "wavetable": "Wavetable",
