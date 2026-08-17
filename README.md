@@ -139,7 +139,7 @@ requirements.txt        -   Python modules needed to use this application
 Here you can see the first setup i tried on the Teensy, which implements monophone FM synthesis: 
 ![Setup Teensy Monophone](visuals/FM-Setup-monophone.png)
 
-And here the second setup, where i added polyphonic functionality (dont get confused by the different visualisation tool i used, it was just more comfortable to use):
+And here the second setup, where i added polyphonic functionality. So you can input 8 notes at the same time instead of only 1. (Dont get confused by the different visualisation tool i used, it was just more comfortable to use):
 ![Setup Teensy Polyphone](visuals/FM-Setup-polyphone.png)
 
 
