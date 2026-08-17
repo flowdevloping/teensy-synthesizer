@@ -146,6 +146,8 @@ Current Setup: Frequency Modulation (8 Note polyphonic input)
 
 For more detailed information, refer to the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
 
+![Teensy Audio Library Setup](visuals/FM-Setup-polyphone.png)
+
 
 ## Contact
 E-Mail: [st200539@stud.uni-stuttgart.de](mailto:st200539@stud.uni-stuttgart.de)
