@@ -137,6 +137,7 @@ requirements.txt        -   Python modules needed to use this application
 ## More Notes
 
 Current Setup: Frequency Modulation (8 Note polyphonic input)
+![Teensy Audio Library Setup](visuals/FM-Setup-polyphone.png)
 - AudioSynthWaveform (Modulator) => Modulation frequency you can adjust in the GUI via the slider.
 - AudioSynthWaveform (Carrier) => Input through Local Device or MIDI-Keyboard. Frequencies are adjustable in the GUI.
 - AudioEffectEnvelope => DAHDSR (Delay, Attack, Hold, Decay, Sustain, Release) envelope
@@ -146,7 +147,6 @@ Current Setup: Frequency Modulation (8 Note polyphonic input)
 
 For more detailed information, refer to the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
 
-![Teensy Audio Library Setup](visuals/FM-Setup-polyphone.png)
 
 
 ## Contact
