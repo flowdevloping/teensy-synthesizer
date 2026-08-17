@@ -144,5 +144,6 @@ And here the second setup, where i added polyphonic functionality (dont get conf
 
 
 ## Contact
-E-Mail: [st200539@stud.uni-stuttgart.de]((mailto:st200539@stud.uni-stuttgart.de))
+E-Mail: [st200539@stud.uni-stuttgart.de](mailto:st200539@stud.uni-stuttgart.de)
+
 Microsoft Teams: [florian.purschke@ms.informatik.uni-stuttgart.de](mailto:florian.purschke@ms.informatik.uni-stuttgart.de)
