@@ -99,7 +99,7 @@ The GUI Application sends messages via USB Serial to the Teensy. The messages ar
 ### Usage Option 2: Not connected to the *Teensy Audio Module*:
 Steps:
 1. Start the Python Application on your Local Device
-2. Play Sound.
+2. Play sound.
 
 How it works: 
 While not being connected to the Audio Module, the python libraries `sounddevice` and `numpy` are used for Sound Synthesis. I adjusted the configuration options so that every possible configuration in the GUI should also be feasable to implement with the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html). So you can also play around with sounds when youre not able to connect to the Audio Module (i.e. when you can not come to the Lab).
