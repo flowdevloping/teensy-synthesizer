@@ -136,11 +136,15 @@ requirements.txt        -   Python modules needed to use this application
 
 ## More Notes
 
-Here you can see the first setup i tried on the Teensy, which implements monophone FM synthesis: 
-![Setup Teensy Monophone](visuals/FM-Setup-monophone.png)
+Current Setup: Frequency Modulation (8 Note polyphonic input)
+- AudioSynthWaveform (Modulator) => Modulation frequency you can adjust in the GUI via the slider.
+- AudioSynthWaveform (Carrier) => Input through Local Device or MIDI-Keyboard. Frequencies are adjustable in the GUI.
+- AudioEffectEnvelope => DAHDSR (Delay, Attack, Hold, Decay, Sustain, Release) envelope
+- AudioMixer4 => Combining up to 4 signals together
+- AudioAmplifier => Amplifies or attentuates a signal 
+- AudioOutputI2S2 => Audio output (I2S on Port 2)
 
-And here the second setup, where i added polyphonic functionality. So you can input 8 notes at the same time instead of only 1. (Dont get confused by the different visualisation tool i used, it was just more comfortable to use):
-![Setup Teensy Polyphone](visuals/FM-Setup-polyphone.png)
+For more detailed information, refer to the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
 
 
 ## Contact
