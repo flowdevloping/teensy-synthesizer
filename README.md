@@ -99,7 +99,7 @@ The GUI Application sends messages via USB Serial to the Teensy. The messages ar
 ### Usage Option 2: Not connected to the *Teensy Audio Module*:
 Steps:
 1. Start the Python Application on your Local Device
-2. Play Sound.
+2. Play sound.
 
 How it works: 
 While not being connected to the Audio Module, the python libraries `sounddevice` and `numpy` are used for Sound Synthesis. I adjusted the configuration options so that every possible configuration in the GUI should also be feasable to implement with the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html). So you can also play around with sounds when youre not able to connect to the Audio Module (i.e. when you can not come to the Lab).
@@ -146,9 +146,8 @@ Current Setup: Frequency Modulation (8 Note polyphonic input)
 
 For more detailed information, refer to the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
 
-![Setup Teensy Polyphone](visuals/FM-Setup-polyphone.png)
-
 
 ## Contact
-E-Mail: [st200539@stud.uni-stuttgart.de]((mailto:st200539@stud.uni-stuttgart.de))
+E-Mail: [st200539@stud.uni-stuttgart.de](mailto:st200539@stud.uni-stuttgart.de)
+
 Microsoft Teams: [florian.purschke@ms.informatik.uni-stuttgart.de](mailto:florian.purschke@ms.informatik.uni-stuttgart.de)
