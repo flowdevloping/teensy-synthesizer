@@ -40,7 +40,6 @@ Config loading and saving:
 - load_config, save_config:
 -> Loads and saves the configuration from/to the config.json file
 -------------------------------------------------------
-
 """
 
 from datetime import datetime
@@ -48,9 +47,8 @@ from tkinter import Entry, Text
 
 import customtkinter as ctk # Python UI library based tkinter (standart python GUI toolkit)
 
-from audio_engine import LocalSynthRouter
+from audio_engine import LocalAudioEngine
 from config_store import AppConfig, load_config, save_config
-from engines.base import MODE_LABELS, SYNTH_MODES
 
 from safety_limits import (
     DEFAULT_VOLUME_PCT,
@@ -61,9 +59,6 @@ from safety_limits import (
     MIN_MODULATOR_HZ,
     MIN_MODULATOR_RATIO,
     VOLUME_KEYBOARD_STEP,
-    ENVELOPE_ATTACK_MS,
-    ENVELOPE_RELEASE_MS,
-    MODULATOR_FADE_MS,
     clamp_mod_depth_pct,
     clamp_modulator_hz,
     clamp_modulator_ratio,
@@ -71,10 +66,10 @@ from safety_limits import (
 )
 from midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
 from serial_client import SerialClient, WatchdogCallbacks, list_com_ports
-from synth_mode_presets import MODE_PRESETS, apply_mode_preset
+from synth_mode_presets import FM_PRESETS, apply_preset
 from setup_store import SynthSetup, export_hiwi_spec, list_setups, load_setup, save_setup
 from fm_utils import compute_modulator_hz
-from synth_state import KEYBOARD_MAPPING, KEYBOARD_NOTE_KEYS, NOTE_MAPPING, SynthState
+from synth_state import PC_KEYBOARD_MAPPING, NOTE_MAPPING, SynthState
 
 # Class object for GUI application based on customtkinter
 class SynthApp(ctk.CTk):
@@ -89,16 +84,11 @@ class SynthApp(ctk.CTk):
         self.minsize(600, 480)
 
         self.config = load_config()
-        initial_mode = self.config.synth_mode if self.config.synth_mode in SYNTH_MODES else "fm"
-        # Migrate legacy checkbox flag to dedicated Pure Sine mode
-        if initial_mode == "fm" and self.config.pure_sine_test:
-            initial_mode = "pure_sine"
-        
-        key_freqs = dict(KEYBOARD_MAPPING)              
-        key_freqs.update(self.config.key_frequencies)    
+
+        key_freqs = dict(PC_KEYBOARD_MAPPING)
+        key_freqs.update(self.config.key_frequencies)
 
         self.synth_state = SynthState(
-            synth_mode=initial_mode,
             key_frequencies=key_freqs,
             modulator_hz=self.config.modulator_hz,
             modulator_mode=self.config.modulator_mode,
@@ -106,11 +96,10 @@ class SynthApp(ctk.CTk):
             volume_pct=self.config.volume_pct,
             mod_depth_pct=self.config.mod_depth_pct,
             active_preset=self.config.active_preset,
-            pure_sine_test=initial_mode == "pure_sine",
         )
         self.serial_client = SerialClient()
         self.midi_handler = MidiInputHandler()
-        self.audio_engine = LocalSynthRouter()
+        self.audio_engine = LocalAudioEngine()
         self._connect_in_progress = False
         self._midi_connect_in_progress = False
         self._pressed_keys: set[str] = set()
@@ -369,26 +358,13 @@ class SynthApp(ctk.CTk):
             row=0, column=0, sticky="w"
         )
 
-        mode_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        mode_frame.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="ew")
-        ctk.CTkLabel(mode_frame, text="Synthesis Mode").grid(row=0, column=0, padx=(0, 8), sticky="w")
-        self.synth_mode_var = ctk.StringVar(value=MODE_LABELS[self.synth_state.synth_mode])
-        self.synth_mode_switch = ctk.CTkSegmentedButton(
-            mode_frame,
-            values=[MODE_LABELS[mode] for mode in SYNTH_MODES],
-            variable=self.synth_mode_var,
-            command=self._on_synth_mode_changed,
-        )
-        self.synth_mode_switch.grid(row=0, column=1, sticky="w")
+        self.preset_buttons_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        self.preset_buttons_frame.grid(row=2, column=0, padx=12, pady=(0, 4), sticky="ew")
 
-        self.mode_preset_buttons_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.mode_preset_buttons_frame.grid(row=2, column=0, padx=12, pady=(0, 4), sticky="ew")
-
-        self.mode_panels_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.mode_panels_frame.grid(row=5, column=0, padx=12, pady=(0, 8), sticky="ew")
-        self.mode_panels_frame.grid_columnconfigure(0, weight=1)
-        self.mode_panels: dict[str, ctk.CTkFrame] = {}
-        self._build_mode_panels()
+        self.fm_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        self.fm_panel_frame.grid(row=5, column=0, padx=12, pady=(0, 8), sticky="ew")
+        self.fm_panel_frame.grid_columnconfigure(0, weight=1)
+        self._build_fm_panel()
 
         self.volume_label = ctk.CTkLabel(
             sound_frame, text=f"Volume: {self.synth_state.volume_pct} %"
@@ -412,8 +388,7 @@ class SynthApp(ctk.CTk):
             self._on_volume_changed,
             decimals=0,
         )
-        self._show_mode_panel()
-        self._style_experimental_modes()
+        self._show_preset_buttons()
 
         setup_frame = ctk.CTkFrame(controls_frame)
         setup_frame.grid(row=4, column=0, pady=(0, 8), sticky="ew")
@@ -460,15 +435,9 @@ class SynthApp(ctk.CTk):
         self.log_text = ctk.CTkTextbox(log_frame, height=90, state="disabled")
         self.log_text.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="ew")
 
-    # Builds the mode panels in the GUI
-    def _build_mode_panels(self) -> None:
-        self._param_labels: dict[str, tuple[ctk.CTkLabel, str]] = {}
-        self._param_entries: dict[str, tuple[ctk.CTkEntry, int]] = {}
-        self.partial_entries: list[ctk.CTkEntry] = []
-
-        fm = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
+    def _build_fm_panel(self) -> None:
+        fm = self.fm_panel_frame
         fm.grid_columnconfigure(0, weight=1)
-        self.mode_panels["fm"] = fm
         modulator_mode_row = ctk.CTkFrame(fm, fg_color="transparent")
         modulator_mode_row.grid(row=0, column=0, columnspan=2, sticky="w")
         ctk.CTkLabel(modulator_mode_row, text="Modulator mode").grid(row=0, column=0, padx=(0, 8), sticky="w")
@@ -496,7 +465,7 @@ class SynthApp(ctk.CTk):
         self.modulator_entry = ctk.CTkEntry(fm, width=70)
         self.ratio_label = ctk.CTkLabel(
             fm,
-            text=f"Ratio to note: {self.synth_state.modulator_ratio:.2f}x",
+            text=f"Ratio (Modulator Frequency / Carrier Frequency): {self.synth_state.modulator_ratio:.2f}x",
         )
         self.ratio_slider = ctk.CTkSlider(
             fm,
@@ -532,71 +501,6 @@ class SynthApp(ctk.CTk):
         self._wire_slider_entry(
             self.mod_depth_slider, self.mod_depth_entry,
             0, MAX_MOD_DEPTH_PCT, self._on_mod_depth_changed, decimals=0,
-        )
-
-        additive = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
-        additive.grid_columnconfigure(0, weight=1)
-        self.mode_panels["additive"] = additive
-        self.partial_sliders: list[ctk.CTkSlider] = []
-        self.partial_labels: list[ctk.CTkLabel] = []
-        for index in range(4):
-            label = ctk.CTkLabel(additive, text=f"H{index + 1}: {self.synth_state.partials[index]:.2f}")
-            slider = ctk.CTkSlider(additive, from_=0, to=1, number_of_steps=100)
-            slider.set(self.synth_state.partials[index])
-            entry = ctk.CTkEntry(additive, width=70)
-            self.partial_sliders.append(slider)
-            self.partial_labels.append(label)
-            self.partial_entries.append(entry)
-            self._add_labeled_slider(additive, index, label, slider, entry)
-            self._wire_slider_entry(
-                slider, entry, 0, 1,
-                lambda value, i=index: self._on_partial_changed(i, value),
-                decimals=2,
-            )
-
-        subtractive = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
-        subtractive.grid_columnconfigure(0, weight=1)
-        self.mode_panels["subtractive"] = subtractive
-        self.waveform_var = ctk.StringVar(value=self.synth_state.waveform)
-        self._add_option(subtractive, 0, "Waveform", self.waveform_var, ["sine", "triangle", "saw", "pulse"], self._on_waveform_changed)
-        self.cutoff_label, self.cutoff_slider, self.cutoff_entry = self._new_slider(
-            subtractive, 1, "Cutoff", 100, 8000, self.synth_state.cutoff_hz, self._on_cutoff_changed, attr="cutoff_hz", decimals=0
-        )
-        self.pulse_width_label, self.pulse_width_slider, self.pulse_width_entry = self._new_slider(
-            subtractive, 2, "Pulse width", 0.05, 0.95, self.synth_state.pulse_width, self._on_pulse_width_changed, attr="pulse_width", decimals=2
-        )
-
-        wavetable = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
-        wavetable.grid_columnconfigure(0, weight=1)
-        self.mode_panels["wavetable"] = wavetable
-        self.table_a_var = ctk.StringVar(value=self.synth_state.table_a)
-        self.table_b_var = ctk.StringVar(value=self.synth_state.table_b)
-        self._add_option(wavetable, 0, "Table A", self.table_a_var, ["sine", "triangle", "saw", "pulse"], self._on_table_a_changed)
-        self._add_option(wavetable, 1, "Table B", self.table_b_var, ["sine", "triangle", "saw", "pulse"], self._on_table_b_changed)
-        self.morph_label, self.morph_slider, self.morph_entry = self._new_slider(
-            wavetable, 2, "Morph", 0, 1, self.synth_state.morph, self._on_morph_changed, attr="morph", decimals=2
-        )
-        self.detune_label, self.detune_slider, self.detune_entry = self._new_slider(
-            wavetable, 3, "Detune (Cent)", -50, 50, self.synth_state.detune_cents, self._on_detune_changed, attr="detune_cents", decimals=1
-        )
-
-        granular = ctk.CTkFrame(self.mode_panels_frame, fg_color="transparent")
-        granular.grid_columnconfigure(0, weight=1)
-        self.mode_panels["granular"] = granular
-        self.grain_ms_label, self.grain_ms_slider, self.grain_ms_entry = self._new_slider(
-            granular, 0, "Grain length (ms)", 5, 200, self.synth_state.grain_ms, self._on_grain_ms_changed, attr="grain_ms", decimals=1
-        )
-        self.density_label, self.density_slider, self.density_entry = self._new_slider(
-            granular, 1, "Density", 1, 40, self.synth_state.density, self._on_density_changed, attr="density", decimals=1
-        )
-        self.position_label, self.position_slider, self.position_entry = self._new_slider(
-            granular, 2, "Position", 0, 1, self.synth_state.grain_position, self._on_position_changed, attr="grain_position", decimals=2
-        )
-        self.spray_label, self.spray_slider, self.spray_entry = self._new_slider(
-            granular, 3, "Spray", 0, 1, self.synth_state.spray, self._on_spray_changed, attr="spray", decimals=2
-        )
-        self.pitch_ratio_label, self.pitch_ratio_slider, self.pitch_ratio_entry = self._new_slider(
-            granular, 4, "Pitch-Ratio", 0.25, 2, self.synth_state.pitch_ratio, self._on_pitch_ratio_changed, attr="pitch_ratio", decimals=2
         )
         self._set_modulator_mode_ui()
 
@@ -683,71 +587,20 @@ class SynthApp(ctk.CTk):
         for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
             canvas.bind(sequence, lambda _event: "break")
 
-    # Creates a new slider with numeric entry
-    def _new_slider(
-        self,
-        parent: ctk.CTkFrame,
-        row: int,
-        title: str,
-        minimum: float,
-        maximum: float,
-        value: float,
-        callback,
-        attr: str | None = None,
-        decimals: int = 2,
-    ) -> tuple[ctk.CTkLabel, ctk.CTkSlider, ctk.CTkEntry]:
-        label = ctk.CTkLabel(parent, text=f"{title}: {self._format_param_value(value, decimals)}")
-        slider = ctk.CTkSlider(parent, from_=minimum, to=maximum, number_of_steps=100)
-        slider.set(value)
-        entry = ctk.CTkEntry(parent, width=70)
-        self._add_labeled_slider(parent, row, label, slider, entry)
-        self._wire_slider_entry(slider, entry, minimum, maximum, callback, decimals=decimals)
-        if attr is not None:
-            self._param_labels[attr] = (label, title)
-            self._param_entries[attr] = (entry, decimals)
-        return label, slider, entry
-
-    # Adds an option to the UI
-    def _add_option(self, parent: ctk.CTkFrame, row: int, title: str, variable: ctk.StringVar,
-                    values: list[str], callback) -> None:
-        ctk.CTkLabel(parent, text=title).grid(row=row, column=0, padx=(0, 8), pady=4, sticky="w")
-        ctk.CTkOptionMenu(parent, variable=variable, values=values, command=callback).grid(
-            row=row, column=1, pady=4, sticky="w"
-        )
-
-    # Shows the synthesis mode panel
-    def _show_mode_panel(self) -> None:
-        has_panel = False
-        for mode, panel in self.mode_panels.items():
-            if mode == self.synth_state.synth_mode:
-                panel.grid(row=0, column=0, sticky="ew")
-                has_panel = True
-            else:
-                panel.grid_remove()
-        # Empty CTkFrames keep their default 200px size, so hide the panel
-        # container when the current mode has no parameter panel (e.g. Pure Sine).
-        if has_panel:
-            self.mode_panels_frame.grid()
-        else:
-            self.mode_panels_frame.grid_remove()
-
-        presets = MODE_PRESETS.get(self.synth_state.synth_mode, {})
-
-        for child in self.mode_preset_buttons_frame.winfo_children():
+    def _show_preset_buttons(self) -> None:
+        for child in self.preset_buttons_frame.winfo_children():
             child.destroy()
-        if presets:
-            self.mode_preset_buttons_frame.grid()
-            for index, preset_name in enumerate(presets):
+        if FM_PRESETS:
+            self.preset_buttons_frame.grid()
+            for index, preset_name in enumerate(FM_PRESETS):
                 ctk.CTkButton(
-                    self.mode_preset_buttons_frame, text=preset_name, width=90,
+                    self.preset_buttons_frame, text=preset_name, width=90,
                     command=lambda name=preset_name: self._apply_preset(name),
                 ).grid(row=index // 3, column=index % 3, padx=3, pady=2, sticky="ew")
             for column in range(3):
-                self.mode_preset_buttons_frame.grid_columnconfigure(column, weight=1)
+                self.preset_buttons_frame.grid_columnconfigure(column, weight=1)
         else:
-            # No presets for this mode: hide the empty preset frame and labels
-            # to avoid the large 200px gap from an empty CTkFrame.
-            self.mode_preset_buttons_frame.grid_remove()
+            self.preset_buttons_frame.grid_remove()
 
     # Refreshes the setup list in the UI
     def _refresh_setup_list(self) -> None:
@@ -761,7 +614,7 @@ class SynthApp(ctk.CTk):
     def _current_setup(self) -> SynthSetup:
         name = self.setup_name_var.get().strip() or self.config.last_setup_name or "Untitled"
         return SynthSetup(
-            name=name, synth_mode=self.synth_state.synth_mode,
+            name=name,
             params=self.synth_state.setup_params_dict(), notes=self.setup_notes_entry.get().strip(),
         )
 
@@ -783,15 +636,12 @@ class SynthApp(ctk.CTk):
             self._log(f"Setup not found: {name}")
             return
         self._on_stop()
-        self.synth_state.synth_mode = setup.synth_mode if setup.synth_mode in SYNTH_MODES else "fm"
         self.synth_state.apply_setup_params(setup.params)
-        self.synth_state.pure_sine_test = self.synth_state.synth_mode == "pure_sine"
         self.synth_state.setup_name = setup.name
         self.setup_name_var.set(setup.name)
         self.setup_notes_entry.delete(0, "end")
         self.setup_notes_entry.insert(0, setup.notes)
         self.config.last_setup_name = setup.name
-        self.audio_engine.set_mode(self.synth_state.synth_mode)
         self._sync_mode_controls()
         self._save_config()
         self._refresh_display()
@@ -851,10 +701,10 @@ class SynthApp(ctk.CTk):
         keysym = getattr(event, "keysym", "") or ""
         if len(char) == 1 and char.isprintable():
             normalized = char.lower()
-            if normalized in KEYBOARD_MAPPING:
+            if normalized in PC_KEYBOARD_MAPPING:
                 return normalized
         keysym_lower = keysym.lower()
-        if keysym_lower in KEYBOARD_MAPPING:
+        if keysym_lower in PC_KEYBOARD_MAPPING:
             return keysym_lower
         return None
 
@@ -885,7 +735,7 @@ class SynthApp(ctk.CTk):
 
     # Restores the default keyboard key -> frequency mapping
     def _reset_key_frequencies(self) -> None:
-        self.synth_state.key_frequencies = dict(KEYBOARD_MAPPING)
+        self.synth_state.key_frequencies = dict(PC_KEYBOARD_MAPPING)
         for key, freq in self.synth_state.key_frequencies.items():
             entry = self._key_freq_entries.get(key)
             if entry is not None:
@@ -928,7 +778,7 @@ class SynthApp(ctk.CTk):
             return
 
         if keysym in ("1", "2", "3", "4", "5", "6"):
-            preset_names = list(MODE_PRESETS.get(self.synth_state.synth_mode, {}))
+            preset_names = list(FM_PRESETS)
             index = int(keysym) - 1
             if index < len(preset_names):
                 self._apply_preset(preset_names[index])
@@ -964,10 +814,8 @@ class SynthApp(ctk.CTk):
         self.config.volume_pct = self.synth_state.volume_pct
         self.config.mod_depth_pct = self.synth_state.mod_depth_pct
         self.config.active_preset = self.synth_state.active_preset
-        self.config.pure_sine_test = self.synth_state.pure_sine_test
         self.config.auto_reconnect = self.auto_reconnect_var.get()
         self.config.local_audio_enabled = self.local_audio_var.get()
-        self.config.synth_mode = self.synth_state.synth_mode
         self.config.last_setup_name = self.setup_name_var.get().strip()
         save_config(self.config)
 
@@ -1059,16 +907,7 @@ class SynthApp(ctk.CTk):
     def _on_midi_note_off(self, note: int) -> None:
         self._note_off(f"midi:{note}")
 
-    # Handles the pure sine test changed event (legacy; mode switch owns this now)
-    def _on_pure_sine_changed(self) -> None:
-        self.synth_state.pure_sine_test = self.synth_state.synth_mode == "pure_sine"
-        self._save_config()
-        if self.synth_state.is_playing:
-            self._dispatch_param_update()
-
-    # Starts the local audio engine
     def _start_local_audio(self) -> None:
-        self.audio_engine.set_mode(self.synth_state.synth_mode)
         if self.audio_engine.start():
             self._log("Local audio engine started")
         else:
@@ -1081,7 +920,7 @@ class SynthApp(ctk.CTk):
         return (
             self.local_audio_var.get()
             and self.audio_engine.is_available
-            and (not self.serial_client.is_connected or not self.synth_state.serial_allowed)
+            and not self.serial_client.is_connected
         )
 
     # Refreshes the local audio status
@@ -1090,7 +929,7 @@ class SynthApp(ctk.CTk):
             return
         if not self.audio_engine.is_available:
             text = "Local Playback: not available"
-        elif self.serial_client.is_connected and self.synth_state.serial_allowed:
+        elif self.serial_client.is_connected:
             text = "Local Playback: Standby (Teensy active)"
         elif self.local_audio_var.get():
             text = "Local Playback: active"
@@ -1131,10 +970,10 @@ class SynthApp(ctk.CTk):
 
     # Applies a preset
     def _apply_preset(self, preset_name: str) -> None:
-        preset = MODE_PRESETS.get(self.synth_state.synth_mode, {}).get(preset_name)
+        preset = FM_PRESETS.get(preset_name)
         if preset is None:
             return
-        apply_mode_preset(self.synth_state, self.synth_state.synth_mode, preset_name)
+        apply_preset(self.synth_state, preset_name)
         self._sync_mode_controls()
         self._save_config()
         self._refresh_display()
@@ -1146,122 +985,20 @@ class SynthApp(ctk.CTk):
 
     # Syncs the mode controls
     def _sync_mode_controls(self) -> None:
-        self.synth_mode_var.set(MODE_LABELS[self.synth_state.synth_mode])
         self.modulator_slider.set(self.synth_state.modulator_hz)
         self.ratio_slider.set(self.synth_state.modulator_ratio)
         self.mod_depth_slider.set(self.synth_state.mod_depth_pct)
         self.volume_slider.set(self.synth_state.volume_pct)
         self.modulator_mode_var.set("Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz")
-        for index, slider in enumerate(self.partial_sliders):
-            slider.set(self.synth_state.partials[index])
-        self.waveform_var.set(self.synth_state.waveform)
-        self.cutoff_slider.set(self.synth_state.cutoff_hz)
-        self.pulse_width_slider.set(self.synth_state.pulse_width)
-        self.table_a_var.set(self.synth_state.table_a)
-        self.table_b_var.set(self.synth_state.table_b)
-        self.morph_slider.set(self.synth_state.morph)
-        self.detune_slider.set(self.synth_state.detune_cents)
-        self.grain_ms_slider.set(self.synth_state.grain_ms)
-        self.density_slider.set(self.synth_state.density)
-        self.position_slider.set(self.synth_state.grain_position)
-        self.spray_slider.set(self.synth_state.spray)
-        self.pitch_ratio_slider.set(self.synth_state.pitch_ratio)
-        self._refresh_mode_labels()
         self._sync_param_entries()
         self._set_modulator_mode_ui()
-        self._show_mode_panel()
-        self._style_experimental_modes()
+        self._show_preset_buttons()
 
     def _sync_param_entries(self) -> None:
         self._set_entry_text(self.volume_entry, float(self.synth_state.volume_pct), 0)
         self._set_entry_text(self.modulator_entry, float(self.synth_state.modulator_hz), 1)
         self._set_entry_text(self.ratio_entry, float(self.synth_state.modulator_ratio), 2)
         self._set_entry_text(self.mod_depth_entry, float(self.synth_state.mod_depth_pct), 0)
-        for index, entry in enumerate(self.partial_entries):
-            self._set_entry_text(entry, float(self.synth_state.partials[index]), 2)
-        for attr, (entry, decimals) in self._param_entries.items():
-            self._set_entry_text(entry, float(getattr(self.synth_state, attr)), decimals)
-
-    # Applies grey background to experimental mode segments (approved: FM + Pure Sine)
-    def _style_experimental_modes(self) -> None:
-        buttons = getattr(self.synth_mode_switch, "_buttons_dict", None)
-        if not buttons:
-            return
-        selected = self.synth_mode_switch.get()
-        unselected_color = self.synth_mode_switch.cget("unselected_color")
-        unselected_hover = self.synth_mode_switch.cget("unselected_hover_color")
-        experimental_color = ("gray70", "gray30")
-        experimental_hover = ("gray60", "gray40")
-        approved = {"fm", "pure_sine"}
-        for mode in SYNTH_MODES:
-            label = MODE_LABELS[mode]
-            button = buttons.get(label)
-            if button is None or label == selected:
-                continue
-            if mode in approved:
-                button.configure(fg_color=unselected_color, hover_color=unselected_hover)
-            else:
-                button.configure(fg_color=experimental_color, hover_color=experimental_hover)
-
-    # Handles the synth mode changed event
-    def _on_synth_mode_changed(self, label: str) -> None:
-        mode = next((key for key, value in MODE_LABELS.items() if value == label), "fm")
-        if mode == self.synth_state.synth_mode:
-            return
-        self._on_stop()
-        self.synth_state.synth_mode = mode
-        self.synth_state.pure_sine_test = mode == "pure_sine"
-        self.synth_state.active_preset = "Custom"
-        self.audio_engine.set_mode(mode)
-        self._sync_mode_controls()
-        self._save_config()
-        self._refresh_display()
-        if self.serial_client.is_connected and not self.synth_state.serial_allowed:
-            self._log(f"Mode {MODE_LABELS[mode]} local only")
-        self._log(f"Synthesis mode: {MODE_LABELS[mode]}")
-        self._style_experimental_modes()
-
-    # Updates the text labels of the currently registered mode sliders
-    def _refresh_mode_labels(self) -> None:
-        for attr, (label, title) in self._param_labels.items():
-            value = getattr(self.synth_state, attr)
-            decimals = self._param_entries.get(attr, (None, 2))[1]
-            label.configure(text=f"{title}: {self._format_param_value(float(value), decimals)}")
-        for index, label in enumerate(self.partial_labels):
-            label.configure(text=f"H{index + 1}: {self.synth_state.partials[index]:.2f}")
-
-    # Updates a mode parameter
-    def _update_mode_param(self, attr: str, value: float) -> None:
-        setattr(self.synth_state, attr, value)
-        self._mark_custom_preset()
-        self._save_config()
-        self._refresh_display()
-        self._refresh_mode_labels()
-        if self.synth_state.is_playing:
-            self._dispatch_param_update()
-
-    def _on_partial_changed(self, index: int, value: float) -> None:
-        self.synth_state.partials[index] = float(value)
-        self._mark_custom_preset()
-        self._save_config()
-        self._refresh_display()
-        self._refresh_mode_labels()
-        if self.synth_state.is_playing:
-            self._dispatch_param_update()
-
-    # Handles change events for mode parameters
-    def _on_waveform_changed(self, value: str) -> None: self._update_mode_param("waveform", value)
-    def _on_cutoff_changed(self, value: float) -> None: self._update_mode_param("cutoff_hz", float(value))
-    def _on_pulse_width_changed(self, value: float) -> None: self._update_mode_param("pulse_width", float(value))
-    def _on_table_a_changed(self, value: str) -> None: self._update_mode_param("table_a", value)
-    def _on_table_b_changed(self, value: str) -> None: self._update_mode_param("table_b", value)
-    def _on_morph_changed(self, value: float) -> None: self._update_mode_param("morph", float(value))
-    def _on_detune_changed(self, value: float) -> None: self._update_mode_param("detune_cents", float(value))
-    def _on_grain_ms_changed(self, value: float) -> None: self._update_mode_param("grain_ms", float(value))
-    def _on_density_changed(self, value: float) -> None: self._update_mode_param("density", float(value))
-    def _on_position_changed(self, value: float) -> None: self._update_mode_param("grain_position", float(value))
-    def _on_spray_changed(self, value: float) -> None: self._update_mode_param("spray", float(value))
-    def _on_pitch_ratio_changed(self, value: float) -> None: self._update_mode_param("pitch_ratio", float(value))
 
     # Handles the modulator mode changed event
     def _on_modulator_mode_changed(self, value: str) -> None:
@@ -1384,7 +1121,6 @@ class SynthApp(ctk.CTk):
             text=f"Modulator depth (FM intensity): {self.synth_state.mod_depth_pct} %"
         )
         self._sync_param_entries()
-        presets = MODE_PRESETS.get(self.synth_state.synth_mode, {})
 
         if self.synth_state.connected and self.synth_state.port:
             self.status_label.configure(text=f"Status: Connected ({self.synth_state.port})")
@@ -1418,7 +1154,6 @@ class SynthApp(ctk.CTk):
         ]
 
     # Dispatch functions: Routing functions to EITHER play sound on audio module OR on local device
-    
     # Routing function to play sound
     def _dispatch_voice_on(self, voice_id: str) -> None:
 
@@ -1427,54 +1162,46 @@ class SynthApp(ctk.CTk):
             return
 
         # If Teensy is connected, send 'play sound' message to Teensy
-        if self.serial_client.is_connected and self.synth_state.serial_allowed:
-            # First mute all sounds
+        if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
             try:
-                slot, stolen = self.serial_client.alloc_slot(voice_id) 
-                # stolen:
-                # If maximum amount of voices are played (defined in serial_client.TEENSY_MAX_VOICES) AND a command comes in to play a new note
-                # -> New note is prioritized -> stolen note defines note that is 'overwritten' by the new note
+                slot, stolen = self.serial_client.alloc_slot(voice_id)
                 if stolen is not None:
                     if stolen in self.synth_state.active_voices:
-                        self.note_off(stolen)
+                        self._note_off(stolen)
                     self.serial_client.send_note_off(
                         self.synth_state.modulator_hz,
                         self.synth_state.volume_pct,
                         self.synth_state.mod_depth_pct,
-                        pure_sine=self.synth_state.pure_sine_test,
                         voice_id=slot,
                     )
                     self._log(f"Teensy voice steal: slot {slot} from {stolen}")
 
-                # Build up and send packet to Teensy
                 packet = self.serial_client.send(
                     voice.carrier_hz,
                     voice.modulator_hz,
                     self.synth_state.volume_pct,
                     self.synth_state.mod_depth_pct,
-                    pure_sine=self.synth_state.pure_sine_test,
                     voice_id=slot,
                 )
                 self.synth_state.last_packet = packet
                 self._log(f"Sent: {packet}")
 
-            # Error handling
+            # If an error with serial connection occurs, set the connection controls to false and log the error
             except Exception as exc:
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
                 self._set_connection_controls(False)
                 self.status_label.configure(text=f"Status: Send error ({exc})")
                 self._log(f"Send error: {exc}")
+                # If local audio is active, play the voice on the local device
                 if self._local_audio_active():
                     self._play_local_voice(voice_id)
             self._refresh_display()
             return
 
-        # If Teensy is not connected AND local audio button is activated, play sound on local device
+        # If local audio is active, play the voice on the local device
         if self._local_audio_active():
-            if self.serial_client.is_connected and not self.synth_state.serial_allowed:
-                self._log(f"Mode {MODE_LABELS[self.synth_state.synth_mode]} local only")
             self._play_local_voice(voice_id)
             self._refresh_display()
             return
@@ -1488,10 +1215,9 @@ class SynthApp(ctk.CTk):
         )
         self._refresh_display()
 
-    # Function to mute sound (single voice)
+    # Dispatch function to mute sound (single voice)
     def _dispatch_voice_off(self, voice_id: str) -> None:
-        # If Teensy is connected, send 'mute sound' message to Teensy
-        if self.serial_client.is_connected and self.synth_state.serial_allowed:
+        if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
             try:
                 slot = self.serial_client.release_slot(voice_id)
@@ -1500,7 +1226,6 @@ class SynthApp(ctk.CTk):
                         self.synth_state.modulator_hz,
                         self.synth_state.volume_pct,
                         self.synth_state.mod_depth_pct,
-                        pure_sine=self.synth_state.pure_sine_test,
                         voice_id=slot,
                     )
                     self.synth_state.last_packet = packet
@@ -1526,7 +1251,7 @@ class SynthApp(ctk.CTk):
 
     # Function to mute all sounds, i.e. when the button 'Stop' is pressed
     def _dispatch_all_notes_off(self) -> None:
-        if self.serial_client.is_connected and self.synth_state.serial_allowed:
+        if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
             try:
                 packet = self.serial_client.send_all_notes_off(
@@ -1554,8 +1279,7 @@ class SynthApp(ctk.CTk):
         if not self.synth_state.is_playing:
             return
 
-        # If Teensy connected, do parameter update on Teensy
-        if self.serial_client.is_connected and self.synth_state.serial_allowed:
+        if self.serial_client.is_connected:
             try:
                 for voice in self.synth_state.active_voices.values():
                     slot = self.serial_client.get_slot(voice.voice_id)
@@ -1566,7 +1290,6 @@ class SynthApp(ctk.CTk):
                         voice.modulator_hz,
                         self.synth_state.volume_pct,
                         self.synth_state.mod_depth_pct,
-                        pure_sine=self.synth_state.pure_sine_test,
                         voice_id=slot,
                     )
                     self.synth_state.last_packet = packet
@@ -1599,15 +1322,14 @@ class SynthApp(ctk.CTk):
         if voice is None:
             return
         params = self.synth_state.engine_params()
-        if self.synth_state.synth_mode in ("fm", "pure_sine"):
-            params["modulator_hz"] = voice.modulator_hz
+        params["modulator_hz"] = voice.modulator_hz
         self.audio_engine.note_on(
             voice.voice_id,
             voice.carrier_hz,
             params,
         )
         packet = (
-            f"local:{self.synth_state.synth_mode}:{voice.voice_id}:"
+            f"local:fm:{voice.voice_id}:"
             f"{voice.carrier_hz:.2f}Hz"
         )
         self.synth_state.last_packet = packet
@@ -1738,7 +1460,7 @@ class SynthApp(ctk.CTk):
     # Function to handle the disconnect event
     def _on_disconnect(self) -> None:
         port = self.synth_state.port or self.port_var.get()
-        if self.synth_state.is_playing and self.synth_state.serial_allowed:
+        if self.synth_state.is_playing:
             try:
                 self.serial_client.send_all_notes_off(self.synth_state.volume_pct)
             except Exception:

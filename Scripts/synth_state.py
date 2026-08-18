@@ -1,7 +1,13 @@
 """
-Contains classes: 
-- Voice: Data class for a single voice (only parameters)
-- SynthState: Data class for the synthesizer state (parameters and functions)
+Contains: 
+
+- NOTE_MAPPING: Dictionary mapping notes to frequencies
+- PC_KEYBOARD_NOTE_KEYS: List of keyboard note keys (a, s, d, f, g, h, j, k)
+- PC_KEYBOARD_MAPPING: Dictionary mapping PC_KEYBOARD_NOTE_KEYS to frequencies in NOTE_MAPPING
+- MAX_VOICES: Maximum number of voices (notes being played at the same time)
+
+- class Voice: Data class for a single voice (only parameters)
+- class SynthState: Data class for the synthesizer state (parameters and functions)
 """
 
 from __future__ import annotations
@@ -21,11 +27,11 @@ NOTE_MAPPING: dict[str, tuple[str, float]] = {
     "C5": ("523.25", 523.25),
 }
 
-KEYBOARD_NOTE_KEYS = ["a", "s", "d", "f", "g", "h", "j", "k"]
+PC_KEYBOARD_NOTE_KEYS = ["a", "s", "d", "f", "g", "h", "j", "k"]
 
-KEYBOARD_MAPPING: dict[str, float] = {
+PC_KEYBOARD_MAPPING: dict[str, float] = {
     key: frequency_hz
-    for key, (_, frequency_hz) in zip(KEYBOARD_NOTE_KEYS, NOTE_MAPPING.values())
+    for key, (_, frequency_hz) in zip(PC_KEYBOARD_NOTE_KEYS, NOTE_MAPPING.values())
 }
 
 MAX_VOICES = 8
@@ -40,9 +46,8 @@ class Voice:
 # Data class for the synthesizer state
 @dataclass
 class SynthState:
-    synth_mode: str = "fm"
     key_frequencies: dict[str, float] = field(
-        default_factory=lambda: dict(KEYBOARD_MAPPING) # lambda function to create a new dict for every instance of SynthState
+        default_factory=lambda: dict(PC_KEYBOARD_MAPPING) # lambda function to create a new dict for every instance of SynthState
     )
     carrier_hz: float | None = None
     modulator_hz: float = 20.0
@@ -51,28 +56,6 @@ class SynthState:
     volume_pct: int = DEFAULT_VOLUME_PCT
     mod_depth_pct: int = 20
     active_preset: str = "Standard"
-    pure_sine_test: bool = False
-    # Additive
-    partials: list[float] = field(
-        default_factory=lambda: [1.0, 0.5, 0.33, 0.25, 0.0, 0.0, 0.0, 0.0]
-    )
-    # Number of currently active harmonics (H1..H{partial_count}), 4..8
-    partial_count: int = 4
-    # Subtractive
-    waveform: str = "saw"
-    cutoff_hz: float = 2000.0
-    pulse_width: float = 0.5
-    # Wavetable
-    table_a: str = "sine"
-    table_b: str = "saw"
-    morph: float = 0.0
-    detune_cents: float = 0.0
-    # Granular
-    grain_ms: float = 40.0
-    density: float = 12.0
-    grain_position: float = 0.3
-    spray: float = 0.15
-    pitch_ratio: float = 1.0
     connected: bool = False
     port: str | None = None
     last_packet: str | None = None
@@ -80,22 +63,18 @@ class SynthState:
     active_voices: dict[str, Voice] = field(default_factory=dict)
     _voice_order: list[str] = field(default_factory=list)
 
+    # Returns True if any voices are playing
     @property
     def is_playing(self) -> bool:
         return len(self.active_voices) > 0
 
-    # Only classic FM / Pure Sine can talk to current Teensy firmware
-    @property
-    def serial_allowed(self) -> bool:
-        return self.synth_mode in ("fm", "pure_sine")
-
-    # Returns the primary voice
+    # Returns the primary voice (the last voice to be turned on)
     def primary_voice(self) -> Voice | None:
         if not self._voice_order:
             return None
         return self.active_voices.get(self._voice_order[-1])
 
-    # Turns on a voice
+    # Returns the voice ID of the voice that was turned on, or None if no voice was turned on
     def note_on(self, voice_id: str, carrier_hz: float, modulator_hz: float) -> str | None:
         stolen: str | None = None
         if voice_id in self.active_voices:
@@ -114,7 +93,7 @@ class SynthState:
         self._sync_legacy_carrier()
         return stolen
 
-    # Turns off a voice
+    # Returns True if the voice was turned off, False if the voice was not found
     def note_off(self, voice_id: str) -> bool:
         if voice_id not in self.active_voices:
             return False
@@ -124,13 +103,13 @@ class SynthState:
         self._sync_legacy_carrier()
         return True
 
-    # Turns off all voices
+    # Turns off all voices and resets the carrier frequency
     def all_notes_off(self) -> None:
         self.active_voices.clear()
         self._voice_order.clear()
         self.carrier_hz = None
 
-    # Updates the modulators for all voices
+    # Updates the modulator frequency for all voices based on the carrier frequency
     def update_voice_modulators(self, compute_modulator) -> None:
         for voice in self.active_voices.values():
             voice.modulator_hz = compute_modulator(voice.carrier_hz)
@@ -140,49 +119,11 @@ class SynthState:
 
     # Returns the parameters for the active local engine
     def engine_params(self) -> dict:
-        base = {"volume_pct": self.volume_pct}
-        if self.synth_mode in ("fm", "pure_sine"):
-            base.update(
-                {
-                    "mod_depth_pct": self.mod_depth_pct,
-                    "pure_sine": self.synth_mode == "pure_sine" or self.pure_sine_test,
-                    "modulator_hz": self.modulator_hz,
-                }
-            )
-        elif self.synth_mode == "additive":
-            # Only the active harmonics should sound; mask the rest
-            parts = list(self.partials)
-            for index in range(self.partial_count, len(parts)):
-                parts[index] = 0.0
-            base["partials"] = parts
-        elif self.synth_mode == "subtractive":
-            base.update(
-                {
-                    "waveform": self.waveform,
-                    "cutoff_hz": self.cutoff_hz,
-                    "pulse_width": self.pulse_width,
-                }
-            )
-        elif self.synth_mode == "wavetable":
-            base.update(
-                {
-                    "table_a": self.table_a,
-                    "table_b": self.table_b,
-                    "morph": self.morph,
-                    "detune_cents": self.detune_cents,
-                }
-            )
-        elif self.synth_mode == "granular":
-            base.update(
-                {
-                    "grain_ms": self.grain_ms,
-                    "density": self.density,
-                    "position": self.grain_position,
-                    "spray": self.spray,
-                    "pitch_ratio": self.pitch_ratio,
-                }
-            )
-        return base
+        return {
+            "volume_pct": self.volume_pct,
+            "mod_depth_pct": self.mod_depth_pct,
+            "modulator_hz": self.modulator_hz,
+        }
 
     # Returns the parameters for the setup JSON
     def setup_params_dict(self) -> dict:
@@ -192,22 +133,7 @@ class SynthState:
             "modulator_mode": self.modulator_mode,
             "modulator_ratio": self.modulator_ratio,
             "mod_depth_pct": self.mod_depth_pct,
-            "pure_sine_test": self.pure_sine_test,
             "active_preset": self.active_preset,
-            "partials": list(self.partials),
-            "partial_count": self.partial_count,
-            "waveform": self.waveform,
-            "cutoff_hz": self.cutoff_hz,
-            "pulse_width": self.pulse_width,
-            "table_a": self.table_a,
-            "table_b": self.table_b,
-            "morph": self.morph,
-            "detune_cents": self.detune_cents,
-            "grain_ms": self.grain_ms,
-            "density": self.density,
-            "grain_position": self.grain_position,
-            "spray": self.spray,
-            "pitch_ratio": self.pitch_ratio,
         }
 
     # Applies the parameters for the setup JSON
@@ -222,48 +148,10 @@ class SynthState:
             self.modulator_ratio = float(params["modulator_ratio"])
         if "mod_depth_pct" in params:
             self.mod_depth_pct = int(params["mod_depth_pct"])
-        if "pure_sine_test" in params:
-            self.pure_sine_test = bool(params["pure_sine_test"])
         if "active_preset" in params:
             self.active_preset = str(params["active_preset"])
-        if "partials" in params:
-            parts = [float(p) for p in params["partials"][:8]]
-            while len(parts) < 8:
-                parts.append(0.0)
-            self.partials = parts
-            # Legacy setups/presets have no explicit count: derive it from the
-            # highest non-zero harmonic so all intended partials stay audible.
-            if "partial_count" not in params:
-                highest = max((i for i, p in enumerate(parts) if p > 0.0), default=3)
-                self.partial_count = max(4, min(8, highest + 1))
-        if "partial_count" in params:
-            self.partial_count = max(4, min(8, int(params["partial_count"])))
-        if "waveform" in params:
-            self.waveform = str(params["waveform"])
-        if "cutoff_hz" in params:
-            self.cutoff_hz = float(params["cutoff_hz"])
-        if "pulse_width" in params:
-            self.pulse_width = float(params["pulse_width"])
-        if "table_a" in params:
-            self.table_a = str(params["table_a"])
-        if "table_b" in params:
-            self.table_b = str(params["table_b"])
-        if "morph" in params:
-            self.morph = float(params["morph"])
-        if "detune_cents" in params:
-            self.detune_cents = float(params["detune_cents"])
-        if "grain_ms" in params:
-            self.grain_ms = float(params["grain_ms"])
-        if "density" in params:
-            self.density = float(params["density"])
-        if "grain_position" in params:
-            self.grain_position = float(params["grain_position"])
-        if "spray" in params:
-            self.spray = float(params["spray"])
-        if "pitch_ratio" in params:
-            self.pitch_ratio = float(params["pitch_ratio"])
 
-    # Synchronizes the carrier frequency with the primary voice
+    # Synchronizes the carrier frequency with the primary voice (the last voice to be turned on)
     def _sync_legacy_carrier(self) -> None:
         primary = self.primary_voice()
         if primary is None:
@@ -284,7 +172,7 @@ class SynthState:
             return "—"
         return f"{primary.carrier_hz:.2f} +{len(self.active_voices) - 1}"
 
-    # Returns the modulator frequency display
+    # Returns the modulator frequency display (if the modulator mode is "ratio", the display shows the modulator ratio)
     def modulator_display(self) -> str:
         if self.modulator_mode == "ratio":
             if self.carrier_hz is not None:
@@ -292,10 +180,10 @@ class SynthState:
             return f"{self.modulator_ratio:.2f}x"
         return f"{self.modulator_hz:.1f} Hz"
 
-    # Returns the volume display
+    # Returns the volume display (percentage)
     def volume_display(self) -> str:
         return f"{self.volume_pct} %"
 
-    # Returns the mod depth display
+    # Returns the modulator depth display (percentage)
     def mod_depth_display(self) -> str:
         return f"{self.mod_depth_pct} %"
