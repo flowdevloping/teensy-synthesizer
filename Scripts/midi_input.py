@@ -1,7 +1,8 @@
 """
-Contains: 
-- list_midi_ports: Lists all MIDI input ports
-- midi_note_to_hz: Converts MIDI notes to frequencies
+Contains:
+
+- list_midi_ports(): Lists all MIDI input ports 
+- midi_note_to_hz(): Converts MIDI notes to frequencies
 
 - class MidiInputHandler: Handles MIDI input and calls callbacks based on incoming MIDI messages
 """

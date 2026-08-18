@@ -116,8 +116,8 @@ exports/                -   Exported specs for Teensy (JSON + Markdown)
 Scripts/
   app.py                -   Application entry point
   gui.py                -   CustomTkinter GUI interface
-  engines/              -   Local FM engine and audio router
-  audio_engine.py       -   Facade for the LocalSynthRouter
+  engines/              -   FM engine and shared DSP helpers
+  audio_engine.py       -   LocalAudioEngine (sounddevice stream + FmEngine)
   synth_mode_presets.py -   Presets for FM synthesis
   setup_store.py        -   Save/load/export synth setups
   serial_client.py      -   Serial port communication (Teensy)

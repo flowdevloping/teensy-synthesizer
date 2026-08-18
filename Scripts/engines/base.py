@@ -1,11 +1,10 @@
 """
-Contains base classes for the synth engines
+Contains shared helpers for the FM engine: constants, envelope, clipping utilities.
 """
 
 from __future__ import annotations
 
 import math
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,12 +15,11 @@ from safety_limits import (
 )
 from synth_state import MAX_VOICES
 
-# Constants for the synth engine
 SAMPLE_RATE = 44100
 BLOCK_SIZE = 256
 CHANNELS = 1
 
-# Data class for a voice envelope
+
 @dataclass
 class VoiceEnvelope:
     note_requested: bool = False
@@ -70,52 +68,19 @@ def envelope_increments(sample_rate: int) -> tuple[float, float]:
     )
     return attack_incr, release_incr
 
-# Applies a soft clip to the samples
+
 def soft_clip(samples: Any, np: Any) -> Any:
     peak = float(np.max(np.abs(samples))) if len(samples) else 0.0
     if peak > FIRMWARE_MAX_AMPLITUDE:
         samples *= FIRMWARE_MAX_AMPLITUDE / peak
     return samples
 
-# Computes the voice scale
+
 def voice_scale() -> float:
     return 1.0 / MAX_VOICES
 
-# Wraps the phase
+
 def wrap_phase(phase: float) -> float:
     if phase >= 1.0:
         phase -= math.floor(phase)
     return phase
-
-# Dictionary of synth modes (FM, Pure Sine, Additive, Subtractive, Wavetable, Granular)
-SYNTH_MODES = ("fm", "pure_sine", "additive", "subtractive", "wavetable", "granular")
-
-# Dictionary of synth mode labels
-MODE_LABELS = {
-    "fm": "FM (approved on AM)",
-    "pure_sine": "Pure Sine (approved on AM)",
-    "additive": "Additive",
-    "subtractive": "Subtractive",
-    "wavetable": "Wavetable",
-    "granular": "Granular",
-}
-
-# Base class for all synth engines
-class SynthEngine(ABC):
-    def __init__(self, sample_rate: int = SAMPLE_RATE) -> None:
-        self.sample_rate = sample_rate
-
-    @abstractmethod
-    def all_notes_off(self) -> None: ...
-
-    @abstractmethod
-    def note_on(self, voice_id: str, frequency_hz: float, params: dict) -> None: ...
-
-    @abstractmethod
-    def note_off(self, voice_id: str | None = None) -> None: ...
-
-    @abstractmethod
-    def update_params(self, params: dict) -> None: ...
-
-    @abstractmethod
-    def render(self, outdata, frames: int, np) -> None: ...  # noqa: ANN001

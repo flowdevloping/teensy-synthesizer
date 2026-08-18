@@ -1,16 +1,10 @@
 """
-Contains the base classes for the synth engines
-- MODE_LABELS: Dictionary of synth mode labels (FM, Additive, Subtractive, Wavetable, Granular)
+Contains shared helpers for the FM engine.
 - SAMPLE_RATE: Sample rate for the synth engine
-- SYNTH_MODES: Dictionary of synth modes (FM, Additive, Subtractive, Wavetable, Granular)
-- SynthEngine: Base class for all synth engines
 """
 
-from engines.base import MODE_LABELS, SAMPLE_RATE, SYNTH_MODES, SynthEngine
+from engines.base import SAMPLE_RATE
 
 __all__ = [
-    "MODE_LABELS",
     "SAMPLE_RATE",
-    "SYNTH_MODES",
-    "SynthEngine",
 ]

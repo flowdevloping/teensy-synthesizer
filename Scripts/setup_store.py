@@ -18,7 +18,6 @@ EXPORTS_DIR = Path(__file__).resolve().parent.parent / "exports"
 @dataclass
 class SynthSetup:
     name: str
-    synth_mode: str
     params: dict
     notes: str = ""
     version: int = 1
@@ -44,7 +43,6 @@ def save_setup(setup: SynthSetup) -> Path:
     path = SETUPS_DIR / f"{_safe_filename(setup.name)}.json"
     data = {
         "name": setup.name,
-        "synth_mode": setup.synth_mode,
         "version": setup.version,
         "params": setup.params,
         "notes": setup.notes,
@@ -67,7 +65,6 @@ def load_setup(name: str) -> SynthSetup | None:
         return None
     return SynthSetup(
         name=str(data.get("name", name)),
-        synth_mode=str(data.get("synth_mode", "fm")),
         params=dict(data.get("params") or {}),
         notes=str(data.get("notes", "")),
         version=int(data.get("version", 1)),
@@ -83,7 +80,6 @@ def export_hiwi_spec(setup: SynthSetup) -> Path:
 
     save_data = {
         "name": setup.name,
-        "synth_mode": setup.synth_mode,
         "version": setup.version,
         "params": setup.params,
         "notes": setup.notes,
@@ -97,7 +93,7 @@ def export_hiwi_spec(setup: SynthSetup) -> Path:
     lines = [
         f"# Synth Setup Spec: {setup.name}",
         "",
-        f"- Mode: `{setup.synth_mode}`",
+        f"- Mode: FM Synthesis",
         f"- Exported: {save_data['exported_at']}",
         f"- Teensy: manual porting by assistant",
         "",

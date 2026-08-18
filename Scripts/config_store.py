@@ -1,5 +1,5 @@
 """
-Contains functionality to save latest settings
+Contains functionality to save latest configuration
 """
 
 import json
@@ -15,8 +15,6 @@ from safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
-
-
 @dataclass
 class AppConfig:
     last_port: str | None = None
@@ -29,10 +27,9 @@ class AppConfig:
     volume_pct: int = DEFAULT_VOLUME_PCT
     mod_depth_pct: int = 20
     active_preset: str = "Standard"
-    pure_sine_test: bool = False
     local_audio_enabled: bool = True
-    synth_mode: str = "fm"
     last_setup_name: str = ""
+
 
 # Loads the config from the config file defined in CONFIG_PATH
 def load_config() -> AppConfig:
@@ -58,11 +55,10 @@ def load_config() -> AppConfig:
         volume_pct=clamp_volume_pct(int(data.get("volume_pct", DEFAULT_VOLUME_PCT))),
         mod_depth_pct=clamp_mod_depth_pct(int(data.get("mod_depth_pct", 20))),
         active_preset=str(data.get("active_preset", "Standard")),
-        pure_sine_test=bool(data.get("pure_sine_test", False)),
         local_audio_enabled=bool(data.get("local_audio_enabled", True)),
-        synth_mode=str(data.get("synth_mode", "fm")),
         last_setup_name=str(data.get("last_setup_name", "")),
     )
+
 
 # Saves the config to the config file defined in CONFIG_PATH
 def save_config(config: AppConfig) -> None:
@@ -77,9 +73,7 @@ def save_config(config: AppConfig) -> None:
         "volume_pct": config.volume_pct,
         "mod_depth_pct": config.mod_depth_pct,
         "active_preset": config.active_preset,
-        "pure_sine_test": config.pure_sine_test,
         "local_audio_enabled": config.local_audio_enabled,
-        "synth_mode": config.synth_mode,
         "last_setup_name": config.last_setup_name,
     }
     CONFIG_PATH.write_text(

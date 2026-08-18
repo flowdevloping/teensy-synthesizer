@@ -1,34 +1,45 @@
 """
 Contains: 
-- Config of maximum values (to make sure nothing gets damaged)
+- MAX and MIN values for parameters (to make sure nothing gets damaged)
 - Clamp functions to apply configured value boundaries
 """
 
+# Default Volume
 DEFAULT_VOLUME_PCT = 10
 
+# Maximum Volume 
 MAX_VOLUME_PCT = 100
+
+# Maximum Modulation Depth
 MAX_MOD_DEPTH_PCT = 70
 
+# Carrier Frequency
 MIN_CARRIER_HZ = 0.0
 MAX_CARRIER_HZ = 2000.0
 
-MIN_MODULATOR_HZ = 1.0
+# Modulator Frequency
+MIN_MODULATOR_HZ = 0.0
 MAX_MODULATOR_HZ = 300.0
 
+# Modulator Ratio
 MIN_MODULATOR_RATIO = 0.25
 MAX_MODULATOR_RATIO = 4.0
 
+# Keyboard Step
 VOLUME_KEYBOARD_STEP = 5
 
-# Hard limits on Teensy side (must match firmware constants)
+# Firmware Parameters (Teensy firmware boundaries)
 FIRMWARE_MAX_AMPLITUDE = 1.0
 FIRMWARE_MAX_MOD_DEPTH = 0.7
 
+# Envelope Parameters
 ENVELOPE_ATTACK_MS = 60.0
 ENVELOPE_RELEASE_MS = 150.0
+
+# Modulator Fade Time
 MODULATOR_FADE_MS = 50.0
 
-# Clamp Functions to apply configured value boundaries
+# Clamping function to apply configured value boundaries
 def clamp_volume_pct(value: int | float) -> int:
     return max(0, min(MAX_VOLUME_PCT, int(round(value))))
 
