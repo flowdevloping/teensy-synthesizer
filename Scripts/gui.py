@@ -308,12 +308,14 @@ class SynthApp(ctk.CTk):
         keyboard_frame = ctk.CTkFrame(controls_frame, fg_color="transparent")
         keyboard_frame.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="ew")
 
+        # Creating buttons for each key and frequency
         for index, (key, frequency_hz) in enumerate(self.synth_state.key_frequencies.items()):
             key_label = key.upper()
             button = ctk.CTkButton(
                 keyboard_frame,
                 text=f"{key_label}\n{frequency_hz:.2f} Hz",
                 width=72,
+                # On button click, call the _note_on function with the key and frequency
                 command=lambda k=key: self._note_on(
                     k, self.synth_state.key_frequencies[k]
                 ),
@@ -671,7 +673,7 @@ class SynthApp(ctk.CTk):
         value_label.pack(padx=12, pady=(0, 12))
         return value_label
 
-    # Sets up the keyboard bindings
+    # Binding pc keyboard buttons to respective functions
     def _setup_keyboard_bindings(self) -> None:
         self.bind_all("<KeyPress>", self._on_key_press, add="+")
         self.bind_all("<KeyRelease>", self._on_key_release, add="+")
@@ -1154,9 +1156,7 @@ class SynthApp(ctk.CTk):
         ]
 
     # Dispatch functions: Routing functions to EITHER play sound on audio module OR on local device
-    # Routing function to play sound
     def _dispatch_voice_on(self, voice_id: str) -> None:
-
         voice = self.synth_state.active_voices.get(voice_id)
         if voice is None:
             return
@@ -1164,6 +1164,7 @@ class SynthApp(ctk.CTk):
         # If Teensy is connected, send 'play sound' message to Teensy
         if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
+            # Try to play sound on Teensy (sending 'play sound' message to Teensy)
             try:
                 slot, stolen = self.serial_client.alloc_slot(voice_id)
                 if stolen is not None:
@@ -1177,6 +1178,7 @@ class SynthApp(ctk.CTk):
                     )
                     self._log(f"Teensy voice steal: slot {slot} from {stolen}")
 
+                # Sending 'play sound' message to Teensy
                 packet = self.serial_client.send(
                     voice.carrier_hz,
                     voice.modulator_hz,
@@ -1187,7 +1189,6 @@ class SynthApp(ctk.CTk):
                 self.synth_state.last_packet = packet
                 self._log(f"Sent: {packet}")
 
-            # If an error with serial connection occurs, set the connection controls to false and log the error
             except Exception as exc:
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
@@ -1335,7 +1336,7 @@ class SynthApp(ctk.CTk):
         self.synth_state.last_packet = packet
         self._log(f"Played locally: {packet}")
 
-    # This function is called when a note is pressed on the PC's keyboard
+    # Initially initiate playing a sound 
     def _note_on(self, voice_id: str, frequency_hz: float) -> None:
         modulator = self._modulator_for_carrier(frequency_hz)
         stolen = self.synth_state.note_on(voice_id, frequency_hz, modulator)
