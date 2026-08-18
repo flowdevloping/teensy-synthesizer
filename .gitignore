@@ -39,3 +39,7 @@ config.json
 *.log
 *.wav
 *.tmp
+
+# Audio exports and setups
+exports/
+setups/

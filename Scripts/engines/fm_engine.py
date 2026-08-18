@@ -160,7 +160,7 @@ class FmEngine:
 
     # Calculate audio samples and send it to the hardware 
     # process voices -> calculate sound samples out of them -> soft clip the samples -> output the samples to the sound card of the computer
-    def render(self, outdata, frames: int, np) -> None:  # noqa: ANN001
+    def render(self, outdata, frames: int, np) -> None:  
         with self._lock:
             volume = self._volume
             mod_depth = self._mod_depth
