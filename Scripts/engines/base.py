@@ -13,8 +13,6 @@ from safety_limits import (
     ENVELOPE_RELEASE_MS,
     FIRMWARE_MAX_AMPLITUDE,
 )
-from synth_state import MAX_VOICES
-
 SAMPLE_RATE = 44100
 BLOCK_SIZE = 256
 CHANNELS = 1
@@ -76,8 +74,8 @@ def soft_clip(samples: Any, np: Any) -> Any:
     return samples
 
 
-def voice_scale() -> float:
-    return 1.0 / MAX_VOICES
+def voice_scale(voice_count: int) -> float:
+    return 1.0 / max(1, voice_count)
 
 
 def wrap_phase(phase: float) -> float:

@@ -43,3 +43,6 @@ config.json
 # Audio exports and setups
 exports/
 setups/
+
+# Firmware (Teensy code)
+firmware/

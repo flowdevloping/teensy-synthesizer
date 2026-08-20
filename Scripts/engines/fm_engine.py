@@ -174,7 +174,7 @@ class FmEngine:
         )
         samples = np.zeros(frames, dtype=np.float32)
         two_pi = 2.0 * math.pi
-        scale = voice_scale()
+        scale = voice_scale(len(voices))
         finished: list[str] = []
 
         # Process each voice
