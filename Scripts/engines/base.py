@@ -82,3 +82,18 @@ def wrap_phase(phase: float) -> float:
     if phase >= 1.0:
         phase -= math.floor(phase)
     return phase
+
+
+# Single-cycle oscillator value for a phase of 0.0..1.0, shaped like the Teensy waveforms
+def waveform_sample(waveform: str, phase: float) -> float:
+    if waveform == "saw":
+        return 2.0 * phase - 1.0
+    if waveform == "square":
+        return 1.0 if phase < 0.5 else -1.0
+    if waveform == "triangle":
+        if phase < 0.25:
+            return 4.0 * phase
+        if phase < 0.75:
+            return 2.0 - 4.0 * phase
+        return 4.0 * phase - 4.0
+    return math.sin(2.0 * math.pi * phase)

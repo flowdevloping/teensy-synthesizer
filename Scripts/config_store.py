@@ -15,12 +15,14 @@ from safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
+from waveforms import DEFAULT_CARRIER_WAVEFORM, clamp_carrier_waveform
 @dataclass
 class AppConfig:
     last_port: str | None = None
     last_midi_port: str | None = None
     auto_reconnect: bool = True
     key_frequencies: dict[str, float] = field(default_factory=dict)
+    carrier_waveform: str = DEFAULT_CARRIER_WAVEFORM
     modulator_hz: float = 20.0
     modulator_mode: str = "fixed"
     modulator_ratio: float = 1.0
@@ -49,6 +51,9 @@ def load_config() -> AppConfig:
             str(k): float(v)
             for k, v in (data.get("key_frequencies") or {}).items()
         },
+        carrier_waveform=clamp_carrier_waveform(
+            data.get("carrier_waveform", DEFAULT_CARRIER_WAVEFORM)
+        ),
         modulator_hz=clamp_modulator_hz(float(data.get("modulator_hz", 20.0))),
         modulator_mode=str(data.get("modulator_mode", "fixed")),
         modulator_ratio=clamp_modulator_ratio(float(data.get("modulator_ratio", 1.0))),
@@ -67,6 +72,7 @@ def save_config(config: AppConfig) -> None:
         "last_midi_port": config.last_midi_port,
         "auto_reconnect": config.auto_reconnect,
         "key_frequencies": config.key_frequencies,
+        "carrier_waveform": config.carrier_waveform,
         "modulator_hz": config.modulator_hz,
         "modulator_mode": config.modulator_mode,
         "modulator_ratio": config.modulator_ratio,

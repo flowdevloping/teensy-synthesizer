@@ -169,6 +169,7 @@ class SerialClient:
         mod_depth_pct: int,
         pure_sine: bool = False,
         voice_id: int = 0,
+        carrier_waveform: str | None = None,
     ) -> str:
         packet = build_packet(
             carrier_hz,
@@ -177,6 +178,7 @@ class SerialClient:
             mod_depth_pct,
             pure_sine=pure_sine,
             voice_id=voice_id,
+            carrier_waveform=carrier_waveform,
         )
         # Writes the packet to the Teensy
         self._write_packet(packet)
@@ -190,6 +192,7 @@ class SerialClient:
         mod_depth_pct: int,
         pure_sine: bool = False,
         voice_id: int = 0,
+        carrier_waveform: str | None = None,
     ) -> str:
         packet = build_note_off(
             modulator_hz,
@@ -197,6 +200,7 @@ class SerialClient:
             mod_depth_pct,
             pure_sine=pure_sine,
             voice_id=voice_id,
+            carrier_waveform=carrier_waveform,
         )
         # Writes the packet to the Teensy
         self._write_packet(packet)

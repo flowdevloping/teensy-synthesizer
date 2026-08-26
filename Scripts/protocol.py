@@ -1,10 +1,12 @@
 """
 Contains packet format for Teensy FM synth.
 
-format: voiceId,carrierHz,modHz,volumePct,modDepthPct\\n
+format: voiceId,carrierHz,modHz,volumePct,modDepthPct,carrierWave\\n
 
-voiceId 0..7 = per-voice note on/off (carrier 0 = note off)
+voiceId 0..7 = per-voice note on/off (carrierHz = 0 = note off)
 voiceId -1   = all notes off
+carrierWave  = waveform ID of the Teensy Audio Library (0 sine, 1 saw, 2 square, 3 triangle),
+               4 selects the wavetable which is stored locally on the Teensy
 """
 
 from dataclasses import dataclass
@@ -15,6 +17,7 @@ from safety_limits import (
     clamp_modulator_hz,
     clamp_volume_pct,
 )
+from waveforms import carrier_waveform_id
 
 @dataclass(frozen=True)
 class SynthPacket:
@@ -23,6 +26,7 @@ class SynthPacket:
     modulator_hz: float
     volume_pct: int
     mod_depth_pct: int
+    carrier_wave: int
 
 
 def build_packet(
@@ -32,6 +36,7 @@ def build_packet(
     mod_depth_pct: int,
     pure_sine: bool = False,
     voice_id: int = 0,
+    carrier_waveform: str | None = None,
 ) -> str:
     if pure_sine:
         modulator_value = 0.0
@@ -46,13 +51,15 @@ def build_packet(
         modulator_hz=modulator_value,
         volume_pct=clamp_volume_pct(volume_pct),
         mod_depth_pct=mod_depth_value,
+        carrier_wave=carrier_waveform_id(carrier_waveform),
     )
     return (
         f"{packet.voice_id},"
         f"{packet.carrier_hz:.2f},"
         f"{packet.modulator_hz:.1f},"
         f"{packet.volume_pct},"
-        f"{packet.mod_depth_pct}\n"
+        f"{packet.mod_depth_pct},"
+        f"{packet.carrier_wave}\n"
     )
 
 
@@ -62,10 +69,26 @@ def build_note_off(
     mod_depth_pct: int,
     pure_sine: bool = False,
     voice_id: int = 0,
+    carrier_waveform: str | None = None,
 ) -> str:
     if pure_sine:
-        return build_packet(0.0, 0.0, volume_pct, 0, pure_sine=True, voice_id=voice_id)
-    return build_packet(0.0, modulator_hz, volume_pct, mod_depth_pct, voice_id=voice_id)
+        return build_packet(
+            0.0,
+            0.0,
+            volume_pct,
+            0,
+            pure_sine=True,
+            voice_id=voice_id,
+            carrier_waveform=carrier_waveform,
+        )
+    return build_packet(
+        0.0,
+        modulator_hz,
+        volume_pct,
+        mod_depth_pct,
+        voice_id=voice_id,
+        carrier_waveform=carrier_waveform,
+    )
 
 
 def build_all_notes_off(volume_pct: int = 0) -> str:

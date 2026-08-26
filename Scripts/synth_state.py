@@ -15,6 +15,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from safety_limits import DEFAULT_VOLUME_PCT
+from waveforms import (
+    DEFAULT_CARRIER_WAVEFORM,
+    carrier_waveform_label,
+    clamp_carrier_waveform,
+)
 
 NOTE_MAPPING: dict[str, tuple[str, float]] = {
     "C4": ("261.63", 261.63),
@@ -50,6 +55,7 @@ class SynthState:
         default_factory=lambda: dict(PC_KEYBOARD_MAPPING) # lambda function to create a new dict for every instance of SynthState
     )
     carrier_hz: float | None = None
+    carrier_waveform: str = DEFAULT_CARRIER_WAVEFORM
     modulator_hz: float = 20.0
     modulator_mode: str = "fixed"
     modulator_ratio: float = 1.0
@@ -123,12 +129,14 @@ class SynthState:
             "volume_pct": self.volume_pct,
             "mod_depth_pct": self.mod_depth_pct,
             "modulator_hz": self.modulator_hz,
+            "carrier_waveform": self.carrier_waveform,
         }
 
     # Returns the parameters for the setup JSON
     def setup_params_dict(self) -> dict:
         return {
             "volume_pct": self.volume_pct,
+            "carrier_waveform": self.carrier_waveform,
             "modulator_hz": self.modulator_hz,
             "modulator_mode": self.modulator_mode,
             "modulator_ratio": self.modulator_ratio,
@@ -140,6 +148,8 @@ class SynthState:
     def apply_setup_params(self, params: dict) -> None:
         if "volume_pct" in params:
             self.volume_pct = int(params["volume_pct"])
+        if "carrier_waveform" in params:
+            self.carrier_waveform = clamp_carrier_waveform(params["carrier_waveform"])
         if "modulator_hz" in params:
             self.modulator_hz = float(params["modulator_hz"])
         if "modulator_mode" in params:
@@ -171,6 +181,10 @@ class SynthState:
         if primary is None:
             return "—"
         return f"{primary.carrier_hz:.2f} +{len(self.active_voices) - 1}"
+
+    # Returns the carrier waveform display (GUI label of the selected waveform)
+    def carrier_waveform_display(self) -> str:
+        return carrier_waveform_label(self.carrier_waveform)
 
     # Returns the modulator frequency display (if the modulator mode is "ratio", the display shows the modulator ratio)
     def modulator_display(self) -> str:

@@ -18,12 +18,14 @@ from safety_limits import (
     clamp_volume_pct,
 )
 from synth_state import MAX_VOICES
+from waveforms import DEFAULT_CARRIER_WAVEFORM, clamp_carrier_waveform
 
 from engines.base import (
     VoiceEnvelope,
     envelope_increments,
     soft_clip,
     voice_scale,
+    waveform_sample,
     wrap_phase,
 )
 
@@ -48,6 +50,7 @@ class FmEngine:
         self._lock = threading.Lock()
         self._volume = 0.1
         self._mod_depth = 0.2
+        self._carrier_waveform = DEFAULT_CARRIER_WAVEFORM
         self._voices: dict[str, _FmVoice] = {}
         self._voice_order: list[str] = []
 
@@ -65,9 +68,14 @@ class FmEngine:
         volume_pct = int(params.get("volume_pct", 10))
         mod_depth_pct = int(params.get("mod_depth_pct", 20))
         modulator_hz = float(params.get("modulator_hz", 20.0))
+        carrier_waveform = clamp_carrier_waveform(
+            params.get("carrier_waveform", DEFAULT_CARRIER_WAVEFORM)
+        )
 
         # Update the volume and modulator depth
         with self._lock:
+            # Update the carrier waveform
+            self._carrier_waveform = carrier_waveform
             # Update the volume 
             self._volume = min(FIRMWARE_MAX_AMPLITUDE, clamp_volume_pct(volume_pct) / 100.0)
             # Update the modulator depth
@@ -149,6 +157,10 @@ class FmEngine:
                     FIRMWARE_MAX_MOD_DEPTH,
                     clamp_mod_depth_pct(params["mod_depth_pct"]) / 100.0,
                 )
+            if "carrier_waveform" in params:
+                self._carrier_waveform = clamp_carrier_waveform(
+                    params["carrier_waveform"]
+                )
             voices = params.get("voices")
             if voices is not None:
                 for voice_id, carrier_hz, modulator_hz in voices:
@@ -164,6 +176,7 @@ class FmEngine:
         with self._lock:
             volume = self._volume
             mod_depth = self._mod_depth
+            carrier_waveform = self._carrier_waveform
             voices = list(self._voices.values())
 
         attack_incr, release_incr = envelope_increments(self.sample_rate)
@@ -208,7 +221,7 @@ class FmEngine:
 
                 # Add the sound sample to the samples array
                 samples[i] += (
-                    math.sin(two_pi * voice.carrier_phase)
+                    waveform_sample(carrier_waveform, voice.carrier_phase)
                     * volume
                     * voice.env.envelope
                     * scale

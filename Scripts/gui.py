@@ -70,6 +70,13 @@ from synth_mode_presets import FM_PRESETS, apply_preset
 from setup_store import SynthSetup, export_hiwi_spec, list_setups, load_setup, save_setup
 from fm_utils import compute_modulator_hz
 from synth_state import PC_KEYBOARD_MAPPING, NOTE_MAPPING, SynthState
+from waveforms import (
+    WAVETABLE_CARRIER_WAVEFORM,
+    carrier_waveform_from_label,
+    carrier_waveform_label,
+    carrier_waveform_labels,
+    is_wavetable_carrier,
+)
 
 # Class object for GUI application based on customtkinter
 class SynthApp(ctk.CTk):
@@ -90,6 +97,7 @@ class SynthApp(ctk.CTk):
 
         self.synth_state = SynthState(
             key_frequencies=key_freqs,
+            carrier_waveform=self.config.carrier_waveform,
             modulator_hz=self.config.modulator_hz,
             modulator_mode=self.config.modulator_mode,
             modulator_ratio=self.config.modulator_ratio,
@@ -440,8 +448,34 @@ class SynthApp(ctk.CTk):
     def _build_fm_panel(self) -> None:
         fm = self.fm_panel_frame
         fm.grid_columnconfigure(0, weight=1)
+
+        carrier_waveform_row = ctk.CTkFrame(fm, fg_color="transparent")
+        carrier_waveform_row.grid(row=0, column=0, columnspan=2, pady=(0, 6), sticky="w")
+        ctk.CTkLabel(carrier_waveform_row, text="Carrier waveform").grid(
+            row=0, column=0, padx=(0, 8), sticky="w"
+        )
+        self.carrier_waveform_var = ctk.StringVar(
+            value=carrier_waveform_label(self.synth_state.carrier_waveform)
+        )
+        self.carrier_waveform_switch = ctk.CTkSegmentedButton(
+            carrier_waveform_row,
+            values=carrier_waveform_labels(),
+            variable=self.carrier_waveform_var,
+            command=self._on_carrier_waveform_changed,
+        )
+        self.carrier_waveform_switch.grid(row=0, column=1, sticky="w")
+
+        self.wavetable_button = ctk.CTkButton(
+            carrier_waveform_row,
+            text=carrier_waveform_label(WAVETABLE_CARRIER_WAVEFORM),
+            width=150,
+            command=self._on_wavetable_carrier_selected,
+        )
+        self.wavetable_button.grid(row=0, column=2, padx=(8, 0), sticky="w")
+        self._sync_carrier_waveform_ui()
+
         modulator_mode_row = ctk.CTkFrame(fm, fg_color="transparent")
-        modulator_mode_row.grid(row=0, column=0, columnspan=2, sticky="w")
+        modulator_mode_row.grid(row=1, column=0, columnspan=2, sticky="w")
         ctk.CTkLabel(modulator_mode_row, text="Modulator mode").grid(row=0, column=0, padx=(0, 8), sticky="w")
         self.modulator_mode_var = ctk.StringVar(
             value="Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz"
@@ -479,7 +513,7 @@ class SynthApp(ctk.CTk):
         self.ratio_entry = ctk.CTkEntry(fm, width=70)
         self.mod_depth_label = ctk.CTkLabel(
             fm,
-            text=f"Modulator depth (FM intensity): {self.synth_state.mod_depth_pct} %",
+            text=self._mod_depth_slider_label_text(),
         )
         self.mod_depth_slider = ctk.CTkSlider(
             fm,
@@ -810,6 +844,7 @@ class SynthApp(ctk.CTk):
     # Saves the configuration
     def _save_config(self) -> None:
         self.config.key_frequencies = dict(self.synth_state.key_frequencies)
+        self.config.carrier_waveform = self.synth_state.carrier_waveform
         self.config.modulator_hz = self.synth_state.modulator_hz
         self.config.modulator_mode = self.synth_state.modulator_mode
         self.config.modulator_ratio = self.synth_state.modulator_ratio
@@ -992,6 +1027,7 @@ class SynthApp(ctk.CTk):
         self.mod_depth_slider.set(self.synth_state.mod_depth_pct)
         self.volume_slider.set(self.synth_state.volume_pct)
         self.modulator_mode_var.set("Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz")
+        self._sync_carrier_waveform_ui()
         self._sync_param_entries()
         self._set_modulator_mode_ui()
         self._show_preset_buttons()
@@ -1001,6 +1037,51 @@ class SynthApp(ctk.CTk):
         self._set_entry_text(self.modulator_entry, float(self.synth_state.modulator_hz), 1)
         self._set_entry_text(self.ratio_entry, float(self.synth_state.modulator_ratio), 2)
         self._set_entry_text(self.mod_depth_entry, float(self.synth_state.mod_depth_pct), 0)
+
+    # Shows the active carrier: either one of the basic waveforms or the Teensy wavetable
+    def _sync_carrier_waveform_ui(self) -> None:
+        if not hasattr(self, "wavetable_button"):
+            return
+        if is_wavetable_carrier(self.synth_state.carrier_waveform):
+            # An empty value deselects every segment of the segmented button
+            self.carrier_waveform_var.set("")
+            self.wavetable_button.configure(fg_color="#1f6aa5", hover_color="#144870")
+        else:
+            self.carrier_waveform_var.set(
+                carrier_waveform_label(self.synth_state.carrier_waveform)
+            )
+            self.wavetable_button.configure(fg_color="gray30", hover_color="gray40")
+
+    # Handles the carrier waveform changed event
+    def _on_carrier_waveform_changed(self, value: str) -> None:
+        self.synth_state.carrier_waveform = carrier_waveform_from_label(value)
+        self._sync_carrier_waveform_ui()
+        self._mark_custom_preset()
+        self._save_config()
+        self._refresh_display()
+        self._log(f"Carrier waveform: {self.synth_state.carrier_waveform_display()}")
+
+        if self.synth_state.is_playing:
+            self._dispatch_param_update()
+
+    # Handles the selection of the wavetable that is stored on the Teensy
+    def _on_wavetable_carrier_selected(self) -> None:
+        if is_wavetable_carrier(self.synth_state.carrier_waveform):
+            return
+
+        self.synth_state.carrier_waveform = WAVETABLE_CARRIER_WAVEFORM
+        self._sync_carrier_waveform_ui()
+        self._mark_custom_preset()
+        self._save_config()
+        self._refresh_display()
+        self._log(f"Carrier waveform: {self.synth_state.carrier_waveform_display()}")
+        if not self.serial_client.is_connected:
+            self._log(
+                "Wavetable only exists on the Teensy, local playback falls back to sine"
+            )
+
+        if self.synth_state.is_playing:
+            self._dispatch_param_update()
 
     # Handles the modulator mode changed event
     def _on_modulator_mode_changed(self, value: str) -> None:
@@ -1104,6 +1185,13 @@ class SynthApp(ctk.CTk):
         self.port_menu.configure(state=port_state)
         self.refresh_ports_button.configure(state=port_state)
 
+    # Slider caption: Morph for the Teensy wavetable, otherwise FM modulator depth
+    def _mod_depth_slider_label_text(self) -> str:
+        pct = self.synth_state.mod_depth_pct
+        if is_wavetable_carrier(self.synth_state.carrier_waveform):
+            return f"Morph: {pct} %"
+        return f"Modulator depth (FM intensity): {pct} %"
+
     # Refreshes the UI displays
     def _refresh_display(self) -> None:
         self.carrier_value_label.configure(text=self.synth_state.carrier_display())
@@ -1119,9 +1207,7 @@ class SynthApp(ctk.CTk):
             else f"Ratio to note: {self.synth_state.modulator_ratio:.2f}x"
         )
         self.volume_label.configure(text=f"Volume: {self.synth_state.volume_pct} %")
-        self.mod_depth_label.configure(
-            text=f"Modulator depth (FM intensity): {self.synth_state.mod_depth_pct} %"
-        )
+        self.mod_depth_label.configure(text=self._mod_depth_slider_label_text())
         self._sync_param_entries()
 
         if self.synth_state.connected and self.synth_state.port:
@@ -1175,6 +1261,7 @@ class SynthApp(ctk.CTk):
                         self.synth_state.volume_pct,
                         self.synth_state.mod_depth_pct,
                         voice_id=slot,
+                        carrier_waveform=self.synth_state.carrier_waveform,
                     )
                     self._log(f"Teensy voice steal: slot {slot} from {stolen}")
 
@@ -1185,6 +1272,7 @@ class SynthApp(ctk.CTk):
                     self.synth_state.volume_pct,
                     self.synth_state.mod_depth_pct,
                     voice_id=slot,
+                    carrier_waveform=self.synth_state.carrier_waveform,
                 )
                 self.synth_state.last_packet = packet
                 self._log(f"Sent: {packet}")
@@ -1228,6 +1316,7 @@ class SynthApp(ctk.CTk):
                         self.synth_state.volume_pct,
                         self.synth_state.mod_depth_pct,
                         voice_id=slot,
+                        carrier_waveform=self.synth_state.carrier_waveform,
                     )
                     self.synth_state.last_packet = packet
                     self._log(f"Note-Off sent: {packet}")
@@ -1292,6 +1381,7 @@ class SynthApp(ctk.CTk):
                         self.synth_state.volume_pct,
                         self.synth_state.mod_depth_pct,
                         voice_id=slot,
+                        carrier_waveform=self.synth_state.carrier_waveform,
                     )
                     self.synth_state.last_packet = packet
                 self._log(
