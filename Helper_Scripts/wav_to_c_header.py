@@ -9,7 +9,7 @@ from scipy.io import wavfile
 from scipy.signal import resample # Added
 
 # Define input and output paths
-wav_path = Path(__file__).resolve().parents[1] / "wavetables" / "SAMPLES" / "PATCH_3" / "Patch_3_5.wav"
+wav_path = Path(__file__).resolve().parents[1] / "wavetables" / "Free_Wavetables-2048-44_1khz-32bit" / "Additive_Synth" / "Add_Synth1.wav"
 out_path = Path(__file__).resolve().parents[1] / "firmware" / "teensy_synth" / "custom_wavetable.h" 
 
 # 1. Read in the .wav file
@@ -18,10 +18,10 @@ if data.ndim > 1: # If the audio data is stereo, take only the left channel
     data = data[:, 0] # [:, 0] means all rows, but only the first column
 
 # Define the frame size
-frame_res = 2048
+waveform_size = 2048
 
 # Get the length of the audio data
-sample_len = len(data) 
+input_wavetable_length = len(data) 
 
 # 2. Normalize data to float range of [-1.0, 1.0] 
 # Reason: Resampling with big int16 values (up to 32767) can cause overflows and clipping, which can cause distortion and artifacts.
@@ -41,13 +41,13 @@ if np.issubdtype(data.dtype, np.integer):
 else:
     data = data.astype(np.float32)
 
-# 3. Check sample length and resample if necessary to make it dividable by frame_res
-if sample_len % frame_res != 0: 
-    sample_dividor = max(1, round(sample_len / frame_res))
-    target_sample_len = sample_dividor * frame_res
+# 3. Check sample length and resample if necessary to make it dividable by waveform_size
+if input_wavetable_length % waveform_size != 0: 
+    n_waveforms_of_input = max(1, round(input_wavetable_length / waveform_size))
+    target_wavetable_lenght = n_waveforms_of_input * waveform_size
 
-    print(f"Sample length {sample_len} is not dividable by {frame_res}. Resampling...")
-    data = resample(data, target_sample_len)
+    print(f"Input wavetable length {input_wavetable_length} is not dividable by {waveform_size}. Resampling...")
+    data = resample(data, target_wavetable_lenght)
 
 # 4. Safe hardware conversion for Teensy I2S DAC (16-Bit Integer)
 # Reason: Resampling with FFT can cause small overshoots at the edges of audio signals (Gibbs-phenomenon)
@@ -56,22 +56,22 @@ if sample_len % frame_res != 0:
 samples = np.clip(np.round(data * 32767.0), -32767, 32767).astype(np.int16)
 
 # 5. Limit the number of frames to 64 for performance reasons (Teensy 4.1 has limited RAM)
-nframes = min(len(samples) // frame_res, 64) #   
-#  Cut the samples from first frame to the frame at position nframes * frame_res
-samples = samples[: nframes * frame_res] 
+n_waveforms = min(len(samples) // waveform_size, 64) #   
+#  Cut the samples from first frame to the frame at position n_waveforms * waveform_size
+samples = samples[: n_waveforms * waveform_size] 
 
 # 6. Write the samples to a .h file
 with out_path.open("w", encoding="utf-8") as f:
     f.write("#pragma once\n#include <Arduino.h>\n\n")
     # Important: Using const to force ARM-Compiler on Teensy to keep the values in Flash memory instead of SRAM.
     # -> Could cause Out-of-Memory crash on Teensy 4.1
-    f.write(f"const uint16_t FRAME_SIZE = {frame_res};\n")
-    f.write(f"const uint16_t NUM_FRAMES = {nframes};\n\n")
-    f.write("const int16_t customWavetable[NUM_FRAMES * FRAME_SIZE] = {\n")
+    f.write(f"const uint16_t WAVEFORM_SIZE = {waveform_size};\n")
+    f.write(f"const uint16_t N_WAVEFORMS = {n_waveforms};\n\n")
+    f.write("const int16_t customWavetable[N_WAVEFORMS * WAVEFORM_SIZE] = {\n")
     for i, s in enumerate(samples):
         f.write(f"{int(s)},")
         if i % 16 == 15:
             f.write("\n")
     f.write("};\n")
 
-print(f"Wrote to file: {out_path} ({nframes} Frames)")
+print(f"Wrote to file: {out_path} ({n_waveforms} Frames)")

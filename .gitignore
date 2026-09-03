@@ -46,3 +46,6 @@ setups/
 
 # Firmware (Teensy code)
 firmware/
+
+# Wavetables 
+wavetables/
