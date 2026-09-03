@@ -11,7 +11,7 @@ DEFAULT_VOLUME_PCT = 10
 MAX_VOLUME_PCT = 100
 
 # Maximum Modulation Depth
-MAX_MOD_DEPTH_PCT = 70
+MAX_MOD_DEPTH_PCT = 100
 
 # Carrier Frequency
 MIN_CARRIER_HZ = 0.0
