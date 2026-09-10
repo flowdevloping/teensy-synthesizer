@@ -44,8 +44,11 @@ config.json
 exports/
 setups/
 
-# Firmware (Teensy code)
-firmware/
-
 # Wavetables 
 wavetables/
+
+# Test Scripts & Notes
+Test_Scripts/
+
+# Teensy Audio Library Setups
+Teensy_Audio_Library/
