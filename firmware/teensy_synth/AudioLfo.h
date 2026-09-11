@@ -7,7 +7,7 @@
 // inputQueueArray[]: private variable - size must match the number of inputs
 
 // Class of LFO element for complex shapes (not just sine, saw, etc.)
-class AudioLfoComplex : public AudioStream
+class AudioLfo : public AudioStream
 {
     private: 
         const int16_t* currentTable = nullptr; // Pointer to the current wavetable, initially set to nullptr.
@@ -29,7 +29,7 @@ class AudioLfoComplex : public AudioStream
         // Constructor
         // AudioStream(nr_of_inputs, inputQueueArray)
         // inputQueueArray: Array of audio block pointers used for the inputs. 0 if no inputs are necessary.
-        AudioLfoComplex() : AudioStream(0, NULL) {}
+        AudioLfo() : AudioStream(0, NULL) {}
 
         // Set the frequency of the LFO
         void setFrequency(float freqHz) {

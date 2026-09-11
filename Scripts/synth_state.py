@@ -14,11 +14,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from safety_limits import DEFAULT_VOLUME_PCT
+from safety_limits import (
+    DEFAULT_VOLUME_PCT,
+    FILTER_DEFAULT_CUTOFF_HZ,
+    FILTER_DEFAULT_Q,
+    LFO_DEFAULT_DEPTH_PCT,
+    LFO_DEFAULT_RATE_HZ,
+    clamp_filter_cutoff,
+    clamp_filter_q,
+    clamp_lfo_depth_pct,
+    clamp_lfo_rate,
+)
 from waveforms import (
     DEFAULT_CARRIER_WAVEFORM,
+    DEFAULT_LFO_SHAPE,
     carrier_waveform_label,
     clamp_carrier_waveform,
+    clamp_lfo_shape,
+    lfo_shape_label,
 )
 
 NOTE_MAPPING: dict[str, tuple[str, float]] = {
@@ -61,6 +74,11 @@ class SynthState:
     modulator_ratio: float = 1.0
     volume_pct: int = DEFAULT_VOLUME_PCT
     mod_depth_pct: int = 20
+    lfo_rate_hz: float = LFO_DEFAULT_RATE_HZ
+    lfo_depth_pct: int = LFO_DEFAULT_DEPTH_PCT
+    lfo_shape: str = DEFAULT_LFO_SHAPE
+    filter_cutoff_hz: float = FILTER_DEFAULT_CUTOFF_HZ
+    filter_resonance: float = FILTER_DEFAULT_Q
     active_preset: str = "Standard"
     connected: bool = False
     port: str | None = None
@@ -141,6 +159,11 @@ class SynthState:
             "modulator_mode": self.modulator_mode,
             "modulator_ratio": self.modulator_ratio,
             "mod_depth_pct": self.mod_depth_pct,
+            "lfo_rate_hz": self.lfo_rate_hz,
+            "lfo_depth_pct": self.lfo_depth_pct,
+            "lfo_shape": self.lfo_shape,
+            "filter_cutoff_hz": self.filter_cutoff_hz,
+            "filter_resonance": self.filter_resonance,
             "active_preset": self.active_preset,
         }
 
@@ -158,6 +181,16 @@ class SynthState:
             self.modulator_ratio = float(params["modulator_ratio"])
         if "mod_depth_pct" in params:
             self.mod_depth_pct = int(params["mod_depth_pct"])
+        if "lfo_rate_hz" in params:
+            self.lfo_rate_hz = clamp_lfo_rate(float(params["lfo_rate_hz"]))
+        if "lfo_depth_pct" in params:
+            self.lfo_depth_pct = clamp_lfo_depth_pct(params["lfo_depth_pct"])
+        if "lfo_shape" in params:
+            self.lfo_shape = clamp_lfo_shape(params["lfo_shape"])
+        if "filter_cutoff_hz" in params:
+            self.filter_cutoff_hz = clamp_filter_cutoff(float(params["filter_cutoff_hz"]))
+        if "filter_resonance" in params:
+            self.filter_resonance = clamp_filter_q(float(params["filter_resonance"]))
         if "active_preset" in params:
             self.active_preset = str(params["active_preset"])
 
@@ -185,6 +218,10 @@ class SynthState:
     # Returns the carrier waveform display (GUI label of the selected waveform)
     def carrier_waveform_display(self) -> str:
         return carrier_waveform_label(self.carrier_waveform)
+
+    # Returns the LFO shape display (GUI label of the selected LFO shape)
+    def lfo_shape_display(self) -> str:
+        return lfo_shape_label(self.lfo_shape)
 
     # Returns the modulator frequency display (if the modulator mode is "ratio", the display shows the modulator ratio)
     def modulator_display(self) -> str:

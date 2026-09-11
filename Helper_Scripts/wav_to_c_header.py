@@ -10,7 +10,7 @@ from scipy.signal import resample # Added
 
 # Define input and output paths
 wav_path = Path(__file__).resolve().parents[1] / "wavetables" / "Free_Wavetables-2048-44_1khz-32bit" / "Additive_Synth" / "Add_Synth1.wav"
-out_path = Path(__file__).resolve().parents[1] / "firmware" / "teensy_synth" / "custom_wavetable.h" 
+out_path = Path(__file__).resolve().parents[1] / "firmware" / "teensy_synth" / "CustomWavetable.h" 
 
 # 1. Read in the .wav file
 rate, data = wavfile.read(wav_path)

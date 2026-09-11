@@ -10,12 +10,25 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
 
 from safety_limits import (
     DEFAULT_VOLUME_PCT,
+    FILTER_DEFAULT_CUTOFF_HZ,
+    FILTER_DEFAULT_Q,
+    LFO_DEFAULT_DEPTH_PCT,
+    LFO_DEFAULT_RATE_HZ,
+    clamp_filter_cutoff,
+    clamp_filter_q,
+    clamp_lfo_depth_pct,
+    clamp_lfo_rate,
     clamp_mod_depth_pct,
     clamp_modulator_hz,
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
-from waveforms import DEFAULT_CARRIER_WAVEFORM, clamp_carrier_waveform
+from waveforms import (
+    DEFAULT_CARRIER_WAVEFORM,
+    DEFAULT_LFO_SHAPE,
+    clamp_carrier_waveform,
+    clamp_lfo_shape,
+)
 @dataclass
 class AppConfig:
     last_port: str | None = None
@@ -28,6 +41,11 @@ class AppConfig:
     modulator_ratio: float = 1.0
     volume_pct: int = DEFAULT_VOLUME_PCT
     mod_depth_pct: int = 20
+    lfo_rate_hz: float = LFO_DEFAULT_RATE_HZ
+    lfo_depth_pct: int = LFO_DEFAULT_DEPTH_PCT
+    lfo_shape: str = DEFAULT_LFO_SHAPE
+    filter_cutoff_hz: float = FILTER_DEFAULT_CUTOFF_HZ
+    filter_resonance: float = FILTER_DEFAULT_Q
     active_preset: str = "Standard"
     local_audio_enabled: bool = True
     last_setup_name: str = ""
@@ -59,6 +77,11 @@ def load_config() -> AppConfig:
         modulator_ratio=clamp_modulator_ratio(float(data.get("modulator_ratio", 1.0))),
         volume_pct=clamp_volume_pct(int(data.get("volume_pct", DEFAULT_VOLUME_PCT))),
         mod_depth_pct=clamp_mod_depth_pct(int(data.get("mod_depth_pct", 20))),
+        lfo_rate_hz=clamp_lfo_rate(float(data.get("lfo_rate_hz", LFO_DEFAULT_RATE_HZ))),
+        lfo_depth_pct=clamp_lfo_depth_pct(int(data.get("lfo_depth_pct", LFO_DEFAULT_DEPTH_PCT))),
+        lfo_shape=clamp_lfo_shape(data.get("lfo_shape", DEFAULT_LFO_SHAPE)),
+        filter_cutoff_hz=clamp_filter_cutoff(float(data.get("filter_cutoff_hz", FILTER_DEFAULT_CUTOFF_HZ))),
+        filter_resonance=clamp_filter_q(float(data.get("filter_resonance", FILTER_DEFAULT_Q))),
         active_preset=str(data.get("active_preset", "Standard")),
         local_audio_enabled=bool(data.get("local_audio_enabled", True)),
         last_setup_name=str(data.get("last_setup_name", "")),
@@ -78,6 +101,11 @@ def save_config(config: AppConfig) -> None:
         "modulator_ratio": config.modulator_ratio,
         "volume_pct": config.volume_pct,
         "mod_depth_pct": config.mod_depth_pct,
+        "lfo_rate_hz": config.lfo_rate_hz,
+        "lfo_depth_pct": config.lfo_depth_pct,
+        "lfo_shape": config.lfo_shape,
+        "filter_cutoff_hz": config.filter_cutoff_hz,
+        "filter_resonance": config.filter_resonance,
         "active_preset": config.active_preset,
         "local_audio_enabled": config.local_audio_enabled,
         "last_setup_name": config.last_setup_name,

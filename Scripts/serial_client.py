@@ -14,7 +14,12 @@ from typing import Callable
 import serial
 from serial.tools import list_ports
 
-from protocol import build_all_notes_off, build_note_off, build_packet
+from protocol import (
+    build_all_notes_off,
+    build_lfo_packet,
+    build_note_off,
+    build_packet,
+)
 
 
 BAUDRATE = 115200
@@ -211,6 +216,19 @@ class SerialClient:
         packet = build_all_notes_off(volume_pct)
         self._write_packet(packet)
         self.clear_voice_slots()
+        return packet.strip()
+
+    # Sends a global LFO + filter packet to the Teensy
+    def send_lfo(
+        self,
+        rate_hz: float,
+        depth_pct: int,
+        shape: str | int,
+        cutoff_hz: float,
+        resonance: float,
+    ) -> str:
+        packet = build_lfo_packet(rate_hz, depth_pct, shape, cutoff_hz, resonance)
+        self._write_packet(packet)
         return packet.strip()
 
     # Function to write a packet to the Teensy

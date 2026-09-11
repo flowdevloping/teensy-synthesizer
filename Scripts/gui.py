@@ -52,6 +52,13 @@ from config_store import AppConfig, load_config, save_config
 
 from safety_limits import (
     DEFAULT_VOLUME_PCT,
+    FILTER_MAX_CUTOFF_HZ,
+    FILTER_MAX_Q,
+    FILTER_MIN_CUTOFF_HZ,
+    FILTER_MIN_Q,
+    LFO_MAX_DEPTH_PCT,
+    LFO_MAX_RATE_HZ,
+    LFO_MIN_RATE_HZ,
     MAX_MOD_DEPTH_PCT,
     MAX_MODULATOR_HZ,
     MAX_MODULATOR_RATIO,
@@ -59,6 +66,10 @@ from safety_limits import (
     MIN_MODULATOR_HZ,
     MIN_MODULATOR_RATIO,
     VOLUME_KEYBOARD_STEP,
+    clamp_filter_cutoff,
+    clamp_filter_q,
+    clamp_lfo_depth_pct,
+    clamp_lfo_rate,
     clamp_mod_depth_pct,
     clamp_modulator_hz,
     clamp_modulator_ratio,
@@ -76,6 +87,9 @@ from waveforms import (
     carrier_waveform_label,
     carrier_waveform_labels,
     is_wavetable_carrier,
+    lfo_shape_from_label,
+    lfo_shape_label,
+    lfo_shape_labels,
 )
 
 # Class object for GUI application based on customtkinter
@@ -103,6 +117,11 @@ class SynthApp(ctk.CTk):
             modulator_ratio=self.config.modulator_ratio,
             volume_pct=self.config.volume_pct,
             mod_depth_pct=self.config.mod_depth_pct,
+            lfo_rate_hz=self.config.lfo_rate_hz,
+            lfo_depth_pct=self.config.lfo_depth_pct,
+            lfo_shape=self.config.lfo_shape,
+            filter_cutoff_hz=self.config.filter_cutoff_hz,
+            filter_resonance=self.config.filter_resonance,
             active_preset=self.config.active_preset,
         )
         self.serial_client = SerialClient()
@@ -376,12 +395,17 @@ class SynthApp(ctk.CTk):
         self.fm_panel_frame.grid_columnconfigure(0, weight=1)
         self._build_fm_panel()
 
+        self.lfo_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        self.lfo_panel_frame.grid(row=6, column=0, padx=12, pady=(0, 8), sticky="ew")
+        self.lfo_panel_frame.grid_columnconfigure(0, weight=1)
+        self._build_lfo_panel()
+
         self.volume_label = ctk.CTkLabel(
             sound_frame, text=f"Volume: {self.synth_state.volume_pct} %"
         )
-        self.volume_label.grid(row=6, column=0, padx=12, pady=(8, 4), sticky="w")
+        self.volume_label.grid(row=7, column=0, padx=12, pady=(8, 4), sticky="w")
         volume_controls = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        volume_controls.grid(row=7, column=0, padx=12, pady=(0, 8), sticky="ew")
+        volume_controls.grid(row=8, column=0, padx=12, pady=(0, 8), sticky="ew")
         volume_controls.grid_columnconfigure(0, weight=1)
         self.volume_slider = ctk.CTkSlider(
             volume_controls, from_=0, to=MAX_VOLUME_PCT, number_of_steps=MAX_VOLUME_PCT,
@@ -432,7 +456,7 @@ class SynthApp(ctk.CTk):
             sound_frame,
             text=f"Safety limits: Volume max. {MAX_VOLUME_PCT} %",
             text_color="gray60", anchor="w",
-        ).grid(row=8, column=0, padx=12, pady=(0, 12), sticky="ew")
+        ).grid(row=9, column=0, padx=12, pady=(0, 12), sticky="ew")
 
         log_frame = ctk.CTkFrame(self)
         log_frame.grid(row=2, column=0, padx=16, pady=(0, 16), sticky="ew")
@@ -539,6 +563,88 @@ class SynthApp(ctk.CTk):
             0, MAX_MOD_DEPTH_PCT, self._on_mod_depth_changed, decimals=0,
         )
         self._set_modulator_mode_ui()
+
+    # Builds the global LFO -> filter cutoff panel
+    def _build_lfo_panel(self) -> None:
+        lfo = self.lfo_panel_frame
+        lfo.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            lfo,
+            text="LFO → Filter Cutoff (global)",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, pady=(4, 4), sticky="w")
+
+        shape_row = ctk.CTkFrame(lfo, fg_color="transparent")
+        shape_row.grid(row=1, column=0, columnspan=2, pady=(0, 6), sticky="w")
+        ctk.CTkLabel(shape_row, text="LFO shape").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        self.lfo_shape_var = ctk.StringVar(value=lfo_shape_label(self.synth_state.lfo_shape))
+        self.lfo_shape_switch = ctk.CTkSegmentedButton(
+            shape_row,
+            values=lfo_shape_labels(),
+            variable=self.lfo_shape_var,
+            command=self._on_lfo_shape_changed,
+        )
+        self.lfo_shape_switch.grid(row=0, column=1, sticky="w")
+
+        self.lfo_rate_label = ctk.CTkLabel(
+            lfo, text=f"LFO rate: {self.synth_state.lfo_rate_hz:.2f} Hz"
+        )
+        self.lfo_rate_slider = ctk.CTkSlider(lfo, from_=LFO_MIN_RATE_HZ, to=LFO_MAX_RATE_HZ)
+        self.lfo_rate_slider.set(self.synth_state.lfo_rate_hz)
+        self.lfo_rate_entry = ctk.CTkEntry(lfo, width=70)
+
+        self.lfo_depth_label = ctk.CTkLabel(
+            lfo, text=f"LFO depth: {self.synth_state.lfo_depth_pct} %"
+        )
+        self.lfo_depth_slider = ctk.CTkSlider(
+            lfo, from_=0, to=LFO_MAX_DEPTH_PCT, number_of_steps=LFO_MAX_DEPTH_PCT
+        )
+        self.lfo_depth_slider.set(self.synth_state.lfo_depth_pct)
+        self.lfo_depth_entry = ctk.CTkEntry(lfo, width=70)
+
+        self.filter_cutoff_label = ctk.CTkLabel(
+            lfo, text=f"Filter cutoff: {self.synth_state.filter_cutoff_hz:.0f} Hz"
+        )
+        self.filter_cutoff_slider = ctk.CTkSlider(
+            lfo, from_=FILTER_MIN_CUTOFF_HZ, to=FILTER_MAX_CUTOFF_HZ
+        )
+        self.filter_cutoff_slider.set(self.synth_state.filter_cutoff_hz)
+        self.filter_cutoff_entry = ctk.CTkEntry(lfo, width=70)
+
+        self.filter_resonance_label = ctk.CTkLabel(
+            lfo, text=f"Filter resonance (Q): {self.synth_state.filter_resonance:.2f}"
+        )
+        self.filter_resonance_slider = ctk.CTkSlider(
+            lfo,
+            from_=FILTER_MIN_Q,
+            to=FILTER_MAX_Q,
+            number_of_steps=int((FILTER_MAX_Q - FILTER_MIN_Q) * 100),
+        )
+        self.filter_resonance_slider.set(self.synth_state.filter_resonance)
+        self.filter_resonance_entry = ctk.CTkEntry(lfo, width=70)
+
+        self._add_labeled_slider(lfo, 1, self.lfo_rate_label, self.lfo_rate_slider, self.lfo_rate_entry)
+        self._add_labeled_slider(lfo, 2, self.lfo_depth_label, self.lfo_depth_slider, self.lfo_depth_entry)
+        self._add_labeled_slider(lfo, 3, self.filter_cutoff_label, self.filter_cutoff_slider, self.filter_cutoff_entry)
+        self._add_labeled_slider(lfo, 4, self.filter_resonance_label, self.filter_resonance_slider, self.filter_resonance_entry)
+
+        self._wire_slider_entry(
+            self.lfo_rate_slider, self.lfo_rate_entry,
+            LFO_MIN_RATE_HZ, LFO_MAX_RATE_HZ, self._on_lfo_rate_changed, decimals=2,
+        )
+        self._wire_slider_entry(
+            self.lfo_depth_slider, self.lfo_depth_entry,
+            0, LFO_MAX_DEPTH_PCT, self._on_lfo_depth_changed, decimals=0,
+        )
+        self._wire_slider_entry(
+            self.filter_cutoff_slider, self.filter_cutoff_entry,
+            FILTER_MIN_CUTOFF_HZ, FILTER_MAX_CUTOFF_HZ, self._on_filter_cutoff_changed, decimals=0,
+        )
+        self._wire_slider_entry(
+            self.filter_resonance_slider, self.filter_resonance_entry,
+            FILTER_MIN_Q, FILTER_MAX_Q, self._on_filter_resonance_changed, decimals=2,
+        )
 
     # Adds a labeled slider (+ optional numeric entry) to the UI
     def _add_labeled_slider(
@@ -681,6 +787,7 @@ class SynthApp(ctk.CTk):
         self._sync_mode_controls()
         self._save_config()
         self._refresh_display()
+        self._send_lfo()
         self._log(f"Setup loaded: {setup.name}")
 
     # Exports the current setup to a specification file
@@ -850,6 +957,11 @@ class SynthApp(ctk.CTk):
         self.config.modulator_ratio = self.synth_state.modulator_ratio
         self.config.volume_pct = self.synth_state.volume_pct
         self.config.mod_depth_pct = self.synth_state.mod_depth_pct
+        self.config.lfo_rate_hz = self.synth_state.lfo_rate_hz
+        self.config.lfo_depth_pct = self.synth_state.lfo_depth_pct
+        self.config.lfo_shape = self.synth_state.lfo_shape
+        self.config.filter_cutoff_hz = self.synth_state.filter_cutoff_hz
+        self.config.filter_resonance = self.synth_state.filter_resonance
         self.config.active_preset = self.synth_state.active_preset
         self.config.auto_reconnect = self.auto_reconnect_var.get()
         self.config.local_audio_enabled = self.local_audio_var.get()
@@ -1026,6 +1138,11 @@ class SynthApp(ctk.CTk):
         self.ratio_slider.set(self.synth_state.modulator_ratio)
         self.mod_depth_slider.set(self.synth_state.mod_depth_pct)
         self.volume_slider.set(self.synth_state.volume_pct)
+        self.lfo_rate_slider.set(self.synth_state.lfo_rate_hz)
+        self.lfo_depth_slider.set(self.synth_state.lfo_depth_pct)
+        self.filter_cutoff_slider.set(self.synth_state.filter_cutoff_hz)
+        self.filter_resonance_slider.set(self.synth_state.filter_resonance)
+        self.lfo_shape_var.set(lfo_shape_label(self.synth_state.lfo_shape))
         self.modulator_mode_var.set("Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz")
         self._sync_carrier_waveform_ui()
         self._sync_param_entries()
@@ -1037,6 +1154,10 @@ class SynthApp(ctk.CTk):
         self._set_entry_text(self.modulator_entry, float(self.synth_state.modulator_hz), 1)
         self._set_entry_text(self.ratio_entry, float(self.synth_state.modulator_ratio), 2)
         self._set_entry_text(self.mod_depth_entry, float(self.synth_state.mod_depth_pct), 0)
+        self._set_entry_text(self.lfo_rate_entry, float(self.synth_state.lfo_rate_hz), 2)
+        self._set_entry_text(self.lfo_depth_entry, float(self.synth_state.lfo_depth_pct), 0)
+        self._set_entry_text(self.filter_cutoff_entry, float(self.synth_state.filter_cutoff_hz), 0)
+        self._set_entry_text(self.filter_resonance_entry, float(self.synth_state.filter_resonance), 2)
 
     # Shows the active carrier: either one of the basic waveforms or the Teensy wavetable
     def _sync_carrier_waveform_ui(self) -> None:
@@ -1208,6 +1329,18 @@ class SynthApp(ctk.CTk):
         )
         self.volume_label.configure(text=f"Volume: {self.synth_state.volume_pct} %")
         self.mod_depth_label.configure(text=self._mod_depth_slider_label_text())
+        self.lfo_rate_label.configure(
+            text=f"LFO rate: {self.synth_state.lfo_rate_hz:.2f} Hz"
+        )
+        self.lfo_depth_label.configure(
+            text=f"LFO depth: {self.synth_state.lfo_depth_pct} %"
+        )
+        self.filter_cutoff_label.configure(
+            text=f"Filter cutoff: {self.synth_state.filter_cutoff_hz:.0f} Hz"
+        )
+        self.filter_resonance_label.configure(
+            text=f"Filter resonance (Q): {self.synth_state.filter_resonance:.2f}"
+        )
         self._sync_param_entries()
 
         if self.synth_state.connected and self.synth_state.port:
@@ -1497,6 +1630,57 @@ class SynthApp(ctk.CTk):
         if self.synth_state.is_playing:
             self._dispatch_param_update()
 
+    # Sends the global LFO + filter state to the Teensy (if connected)
+    def _send_lfo(self) -> None:
+        if self.serial_client.is_connected:
+            try:
+                packet = self.serial_client.send_lfo(
+                    self.synth_state.lfo_rate_hz,
+                    self.synth_state.lfo_depth_pct,
+                    self.synth_state.lfo_shape,
+                    self.synth_state.filter_cutoff_hz,
+                    self.synth_state.filter_resonance,
+                )
+                self.synth_state.last_packet = packet
+                self._log(f"LFO sent: {packet}")
+            except Exception as exc:
+                self.synth_state.connected = False
+                self.serial_client.disconnect()
+                self._set_connection_controls(False)
+                self.status_label.configure(text=f"Status: Send error ({exc})")
+                self._log(f"LFO send error: {exc}")
+        self._refresh_display()
+
+    # Function to handle the LFO rate changed event
+    def _on_lfo_rate_changed(self, value: float) -> None:
+        self.synth_state.lfo_rate_hz = clamp_lfo_rate(value)
+        self._save_config()
+        self._send_lfo()
+
+    # Function to handle the LFO depth changed event
+    def _on_lfo_depth_changed(self, value: float) -> None:
+        self.synth_state.lfo_depth_pct = clamp_lfo_depth_pct(value)
+        self._save_config()
+        self._send_lfo()
+
+    # Function to handle the filter cutoff changed event
+    def _on_filter_cutoff_changed(self, value: float) -> None:
+        self.synth_state.filter_cutoff_hz = clamp_filter_cutoff(value)
+        self._save_config()
+        self._send_lfo()
+
+    # Function to handle the filter resonance changed event
+    def _on_filter_resonance_changed(self, value: float) -> None:
+        self.synth_state.filter_resonance = clamp_filter_q(value)
+        self._save_config()
+        self._send_lfo()
+
+    # Function to handle the LFO shape changed event
+    def _on_lfo_shape_changed(self, value: str) -> None:
+        self.synth_state.lfo_shape = lfo_shape_from_label(value)
+        self._save_config()
+        self._send_lfo()
+
     # Function to handle the auto reconnect changed event
     def _on_auto_reconnect_changed(self) -> None:
         self._save_config()
@@ -1535,6 +1719,8 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self._set_connection_controls(True)
         self._log(f"Connected to {port}")
+        # Push the current global LFO + filter state to the freshly connected Teensy
+        self._send_lfo()
         self._refresh_display()
 
     # Function to handle the connect error event

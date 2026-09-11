@@ -25,6 +25,25 @@ MAX_MODULATOR_HZ = 300.0
 MIN_MODULATOR_RATIO = 0.25
 MAX_MODULATOR_RATIO = 4.0
 
+# LFO Rate (matches LfoMinHz/LfoMaxHz in AudioLfoComplex)
+LFO_MIN_RATE_HZ = 0.01
+LFO_MAX_RATE_HZ = 100.0
+LFO_DEFAULT_RATE_HZ = 2.0
+
+# LFO Depth (percent, 0 = no wobble)
+LFO_MAX_DEPTH_PCT = 100
+LFO_DEFAULT_DEPTH_PCT = 0
+
+# Filter Cutoff Frequency
+FILTER_MIN_CUTOFF_HZ = 20.0
+FILTER_MAX_CUTOFF_HZ = 12000.0
+FILTER_DEFAULT_CUTOFF_HZ = 12000.0
+
+# Filter Resonance (Q)
+FILTER_MIN_Q = 0.7
+FILTER_MAX_Q = 5.0
+FILTER_DEFAULT_Q = 0.7
+
 # Keyboard Step
 VOLUME_KEYBOARD_STEP = 5
 
@@ -65,3 +84,19 @@ def clamp_modulator_ratio(value: float) -> float:
 def clamp_modulator_for_carrier(carrier_hz: float, ratio: float) -> float:
     computed = carrier_hz * clamp_modulator_ratio(ratio)
     return clamp_modulator_hz(computed)
+
+
+def clamp_lfo_rate(value: float) -> float:
+    return max(LFO_MIN_RATE_HZ, min(LFO_MAX_RATE_HZ, float(value)))
+
+
+def clamp_lfo_depth_pct(value: int | float) -> int:
+    return max(0, min(LFO_MAX_DEPTH_PCT, int(round(value))))
+
+
+def clamp_filter_cutoff(value: float) -> float:
+    return max(FILTER_MIN_CUTOFF_HZ, min(FILTER_MAX_CUTOFF_HZ, float(value)))
+
+
+def clamp_filter_q(value: float) -> float:
+    return max(FILTER_MIN_Q, min(FILTER_MAX_Q, round(float(value), 2)))

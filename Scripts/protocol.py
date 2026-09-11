@@ -1,23 +1,41 @@
 """
 Contains packet format for Teensy FM synth.
 
-format: voiceId,carrierHz,modHz,volumePct,modDepthPct,carrierWave\\n
+Note packet format: voiceId,carrierHz,modHz,volumePct,modDepthPct,carrierWave
 
-voiceId 0..7 = per-voice note on/off (carrierHz = 0 = note off)
-voiceId -1   = all notes off
-carrierWave  = waveform ID of the Teensy Audio Library (0 sine, 1 saw, 2 square, 3 triangle),
-               4 selects the wavetable which is stored locally on the Teensy
+voiceId -1..7 = per-voice note on/off (-1 = all notes off)
+carrierHz  = carrier frequency in Hz (0 = note off)
+modulatorHz = modulator frequency in Hz
+volumePct   = volume in percent (0..100%)
+modDepthPct  = modulation depth in percent (0..100%)
+carrierWave  = waveform ID of the Teensy Audio Library (0 sine, 1 saw, 2 square, 3 triangle, 4 wavetable)
+
+
+LFO/filter packet format: L,rate,depth,shape,cutoff,res
+
+rate   = LFO frequency in Hz
+depth  = LFO depth in percent (0..100, 0 = no wobble)
+shape  = LFO shape ID (0 sine, 1 triangle, 2 ramp, 3 square)
+cutoff = filter cutoff frequency in Hz
+res    = filter resonance (Q)
+
+The LFO command uses its own "L," prefix (not the positional note format) because it is
+a global parameter, not a per-voice note.
 """
 
 from dataclasses import dataclass
 
 from safety_limits import (
     clamp_carrier_hz,
+    clamp_filter_cutoff,
+    clamp_filter_q,
+    clamp_lfo_depth_pct,
+    clamp_lfo_rate,
     clamp_mod_depth_pct,
     clamp_modulator_hz,
     clamp_volume_pct,
 )
-from waveforms import carrier_waveform_id
+from waveforms import carrier_waveform_id, lfo_shape_id
 
 @dataclass(frozen=True)
 class SynthPacket:
@@ -93,3 +111,21 @@ def build_note_off(
 
 def build_all_notes_off(volume_pct: int = 0) -> str:
     return build_packet(0.0, 0.0, volume_pct, 0, pure_sine=True, voice_id=-1)
+
+
+def build_lfo_packet(
+    rate_hz: float,
+    depth_pct: int,
+    shape: str | int,
+    cutoff_hz: float,
+    resonance: float,
+) -> str:
+    shape_value = shape if isinstance(shape, int) else lfo_shape_id(shape)
+    return (
+        "L,"
+        f"{clamp_lfo_rate(rate_hz):.2f},"
+        f"{clamp_lfo_depth_pct(depth_pct)},"
+        f"{int(shape_value)},"
+        f"{clamp_filter_cutoff(cutoff_hz):.2f},"
+        f"{clamp_filter_q(resonance):.2f}\n"
+    )
