@@ -25,13 +25,25 @@ from safety_limits import (
     clamp_lfo_depth_pct,
     clamp_lfo_rate,
 )
+from lfo_waveform import (
+    DEFAULT_LFO_INTERP,
+    DEFAULT_LFO_PRESET,
+    apply_lfo_preset,
+    clamp_lfo_interp,
+    clamp_lfo_points,
+    clamp_lfo_preset,
+    clamp_lfo_table,
+    default_lfo_points,
+    default_lfo_table,
+    lfo_preset_label,
+    lfo_state_from_mapping,
+    points_to_table,
+    sample_points_from_table,
+)
 from waveforms import (
     DEFAULT_CARRIER_WAVEFORM,
-    DEFAULT_LFO_SHAPE,
     carrier_waveform_label,
     clamp_carrier_waveform,
-    clamp_lfo_shape,
-    lfo_shape_label,
 )
 
 NOTE_MAPPING: dict[str, tuple[str, float]] = {
@@ -76,7 +88,10 @@ class SynthState:
     mod_depth_pct: int = 20
     lfo_rate_hz: float = LFO_DEFAULT_RATE_HZ
     lfo_depth_pct: int = LFO_DEFAULT_DEPTH_PCT
-    lfo_shape: str = DEFAULT_LFO_SHAPE
+    lfo_preset: str = DEFAULT_LFO_PRESET
+    lfo_interp: str = DEFAULT_LFO_INTERP
+    lfo_points: list[float] = field(default_factory=default_lfo_points)
+    lfo_table: list[float] = field(default_factory=default_lfo_table)
     filter_cutoff_hz: float = FILTER_DEFAULT_CUTOFF_HZ
     filter_resonance: float = FILTER_DEFAULT_Q
     active_preset: str = "Standard"
@@ -161,7 +176,10 @@ class SynthState:
             "mod_depth_pct": self.mod_depth_pct,
             "lfo_rate_hz": self.lfo_rate_hz,
             "lfo_depth_pct": self.lfo_depth_pct,
-            "lfo_shape": self.lfo_shape,
+            "lfo_preset": self.lfo_preset,
+            "lfo_interp": self.lfo_interp,
+            "lfo_points": list(self.lfo_points),
+            "lfo_table": list(self.lfo_table),
             "filter_cutoff_hz": self.filter_cutoff_hz,
             "filter_resonance": self.filter_resonance,
             "active_preset": self.active_preset,
@@ -185,8 +203,12 @@ class SynthState:
             self.lfo_rate_hz = clamp_lfo_rate(float(params["lfo_rate_hz"]))
         if "lfo_depth_pct" in params:
             self.lfo_depth_pct = clamp_lfo_depth_pct(params["lfo_depth_pct"])
-        if "lfo_shape" in params:
-            self.lfo_shape = clamp_lfo_shape(params["lfo_shape"])
+        if any(key in params for key in ("lfo_preset", "lfo_interp", "lfo_points", "lfo_table", "lfo_shape")):
+            preset, interp, points, table = lfo_state_from_mapping(params)
+            self.lfo_preset = preset
+            self.lfo_interp = interp
+            self.lfo_points = points
+            self.lfo_table = table
         if "filter_cutoff_hz" in params:
             self.filter_cutoff_hz = clamp_filter_cutoff(float(params["filter_cutoff_hz"]))
         if "filter_resonance" in params:
@@ -219,11 +241,37 @@ class SynthState:
     def carrier_waveform_display(self) -> str:
         return carrier_waveform_label(self.carrier_waveform)
 
-    # Returns the LFO shape display (GUI label of the selected LFO shape)
-    def lfo_shape_display(self) -> str:
-        return lfo_shape_label(self.lfo_shape)
+    # Function which returns the LFO preset display (GUI label of the selected LFO shape)
+    def lfo_preset_display(self) -> str:
+        return lfo_preset_label(self.lfo_preset)
 
-    # Returns the modulator frequency display (if the modulator mode is "ratio", the display shows the modulator ratio)
+    # Function to set the LFO preset
+    def set_lfo_preset(self, preset: str) -> None:
+        name, interp, points, table = apply_lfo_preset(preset)
+        self.lfo_preset = name
+        self.lfo_interp = interp
+        self.lfo_points = points
+        self.lfo_table = table
+
+    # Function to rebuild the LFO waveform from canvas points
+    def rebuild_lfo_from_points(self, mark_custom: bool = True) -> None:
+        self.lfo_points = clamp_lfo_points(self.lfo_points)
+        self.lfo_interp = clamp_lfo_interp(self.lfo_interp)
+        self.lfo_table = points_to_table(self.lfo_points, self.lfo_interp)
+        if not mark_custom:
+            return
+        if self.lfo_preset == "snh" and self.lfo_interp == "step":
+            return
+        self.lfo_preset = "custom"
+
+    # Function to set the LFO table
+    def set_lfo_table(self, table: object, preset: str = "custom") -> None:
+        self.lfo_table = clamp_lfo_table(table)
+        self.lfo_points = clamp_lfo_points(self.lfo_points) if self.lfo_points else default_lfo_points()
+        self.lfo_points = sample_points_from_table(self.lfo_table)
+        self.lfo_preset = clamp_lfo_preset(preset)
+
+    # Function which returns the modulator frequency display (if the modulator mode is "ratio", the display shows the modulator ratio)
     def modulator_display(self) -> str:
         if self.modulator_mode == "ratio":
             if self.carrier_hz is not None:
@@ -231,10 +279,10 @@ class SynthState:
             return f"{self.modulator_ratio:.2f}x"
         return f"{self.modulator_hz:.1f} Hz"
 
-    # Returns the volume display (percentage)
+    # Function which returns the volume display (percentage)
     def volume_display(self) -> str:
         return f"{self.volume_pct} %"
 
-    # Returns the modulator depth display (percentage)
+    # Function which returns the modulator depth display (percentage)
     def mod_depth_display(self) -> str:
         return f"{self.mod_depth_pct} %"

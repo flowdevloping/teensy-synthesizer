@@ -25,7 +25,7 @@ MAX_MODULATOR_HZ = 300.0
 MIN_MODULATOR_RATIO = 0.25
 MAX_MODULATOR_RATIO = 4.0
 
-# LFO Rate (matches LfoMinHz/LfoMaxHz in AudioLfoComplex)
+# LFO Rate (matches LfoMinHz/LfoMaxHz in AudioLfo)
 LFO_MIN_RATE_HZ = 0.01
 LFO_MAX_RATE_HZ = 100.0
 LFO_DEFAULT_RATE_HZ = 2.0

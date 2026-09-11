@@ -43,12 +43,21 @@ Config loading and saving:
 """
 
 from datetime import datetime
-from tkinter import Entry, Text
+from tkinter import Canvas, Entry, Text
 
 import customtkinter as ctk # Python UI library based tkinter (standart python GUI toolkit)
 
 from audio_engine import LocalAudioEngine
 from config_store import AppConfig, load_config, save_config
+from lfo_waveform import (
+    LFO_PRESET_LABELS,
+    LFO_PRESET_ORDER,
+    LFO_WAVETABLE_SIZE,
+    lfo_interp_from_label,
+    lfo_interp_label,
+    point_indices,
+    table_to_int16,
+)
 
 from safety_limits import (
     DEFAULT_VOLUME_PCT,
@@ -87,9 +96,6 @@ from waveforms import (
     carrier_waveform_label,
     carrier_waveform_labels,
     is_wavetable_carrier,
-    lfo_shape_from_label,
-    lfo_shape_label,
-    lfo_shape_labels,
 )
 
 # Class object for GUI application based on customtkinter
@@ -100,9 +106,9 @@ class SynthApp(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.title("HIL Audio Synthesizer")
-        self.geometry("800x700")
-        self.minsize(600, 480)
+        self.title("Sonic HRI Synth")
+        self.geometry("800x820")
+        self.minsize(600, 520)
 
         self.config = load_config()
 
@@ -119,7 +125,10 @@ class SynthApp(ctk.CTk):
             mod_depth_pct=self.config.mod_depth_pct,
             lfo_rate_hz=self.config.lfo_rate_hz,
             lfo_depth_pct=self.config.lfo_depth_pct,
-            lfo_shape=self.config.lfo_shape,
+            lfo_preset=self.config.lfo_preset,
+            lfo_interp=self.config.lfo_interp,
+            lfo_points=list(self.config.lfo_points),
+            lfo_table=list(self.config.lfo_table),
             filter_cutoff_hz=self.config.filter_cutoff_hz,
             filter_resonance=self.config.filter_resonance,
             active_preset=self.config.active_preset,
@@ -133,6 +142,10 @@ class SynthApp(ctk.CTk):
         self._note_buttons: dict[str, ctk.CTkButton] = {}
         self._key_freq_entries: dict[str, ctk.CTkEntry] = {}
         self._note_button_default_color: str | tuple[str, str] | None = None
+        self._lfo_drag_index: int | None = None
+        self._lfo_table_send_after: object | None = None
+        self._lfo_ui_syncing = False
+        self._lfo_preset_buttons: dict[str, ctk.CTkButton] = {}
 
         self._build_ui()
         self._disable_all_slider_scrolling()
@@ -576,16 +589,50 @@ class SynthApp(ctk.CTk):
         ).grid(row=0, column=0, columnspan=2, pady=(4, 4), sticky="w")
 
         shape_row = ctk.CTkFrame(lfo, fg_color="transparent")
-        shape_row.grid(row=1, column=0, columnspan=2, pady=(0, 6), sticky="w")
+        shape_row.grid(row=1, column=0, columnspan=2, pady=(0, 6), sticky="ew")
+        shape_row.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(shape_row, text="LFO shape").grid(row=0, column=0, padx=(0, 8), sticky="w")
-        self.lfo_shape_var = ctk.StringVar(value=lfo_shape_label(self.synth_state.lfo_shape))
-        self.lfo_shape_switch = ctk.CTkSegmentedButton(
+
+        preset_row = ctk.CTkFrame(shape_row, fg_color="transparent")
+        preset_row.grid(row=0, column=1, sticky="w")
+        self._lfo_preset_buttons = {}
+        for column, name in enumerate(LFO_PRESET_ORDER):
+            button = ctk.CTkButton(
+                preset_row,
+                text=LFO_PRESET_LABELS[name],
+                width=64,
+                command=lambda preset=name: self._on_lfo_preset_clicked(preset),
+            )
+            button.grid(row=0, column=column, padx=(0, 6), sticky="w")
+            self._lfo_preset_buttons[name] = button
+
+        self.lfo_interp_var = ctk.StringVar(value=lfo_interp_label(self.synth_state.lfo_interp))
+        self.lfo_interp_switch = ctk.CTkSegmentedButton(
             shape_row,
-            values=lfo_shape_labels(),
-            variable=self.lfo_shape_var,
-            command=self._on_lfo_shape_changed,
+            values=["Linear", "Step"],
+            variable=self.lfo_interp_var,
+            command=self._on_lfo_interp_changed,
+            width=140,
         )
-        self.lfo_shape_switch.grid(row=0, column=1, sticky="w")
+        self.lfo_interp_switch.grid(row=0, column=2, padx=(8, 0), sticky="e")
+
+        canvas_host = ctk.CTkFrame(lfo, fg_color="gray17", corner_radius=6)
+        canvas_host.grid(row=2, column=0, columnspan=2, pady=(0, 4), sticky="ew")
+        canvas_host.grid_columnconfigure(0, weight=1)
+        self.lfo_canvas = Canvas(
+            canvas_host,
+            height=90,
+            bg="#1a1a1a",
+            highlightthickness=0,
+            bd=0,
+        )
+        self.lfo_canvas.grid(row=0, column=0, padx=4, pady=4, sticky="ew")
+        self.lfo_canvas.bind("<Configure>", self._on_lfo_canvas_configure)
+        self.lfo_canvas.bind("<ButtonPress-1>", self._on_lfo_canvas_press)
+        self.lfo_canvas.bind("<B1-Motion>", self._on_lfo_canvas_motion)
+        self.lfo_canvas.bind("<ButtonRelease-1>", self._on_lfo_canvas_release)
+        self.lfo_canvas.after(1, self._draw_lfo_canvas)
+        self._sync_lfo_waveform_ui()
 
         self.lfo_rate_label = ctk.CTkLabel(
             lfo, text=f"LFO rate: {self.synth_state.lfo_rate_hz:.2f} Hz"
@@ -787,6 +834,7 @@ class SynthApp(ctk.CTk):
         self._sync_mode_controls()
         self._save_config()
         self._refresh_display()
+        self._send_lfo_table()
         self._send_lfo()
         self._log(f"Setup loaded: {setup.name}")
 
@@ -959,7 +1007,10 @@ class SynthApp(ctk.CTk):
         self.config.mod_depth_pct = self.synth_state.mod_depth_pct
         self.config.lfo_rate_hz = self.synth_state.lfo_rate_hz
         self.config.lfo_depth_pct = self.synth_state.lfo_depth_pct
-        self.config.lfo_shape = self.synth_state.lfo_shape
+        self.config.lfo_preset = self.synth_state.lfo_preset
+        self.config.lfo_interp = self.synth_state.lfo_interp
+        self.config.lfo_points = list(self.synth_state.lfo_points)
+        self.config.lfo_table = list(self.synth_state.lfo_table)
         self.config.filter_cutoff_hz = self.synth_state.filter_cutoff_hz
         self.config.filter_resonance = self.synth_state.filter_resonance
         self.config.active_preset = self.synth_state.active_preset
@@ -1142,7 +1193,7 @@ class SynthApp(ctk.CTk):
         self.lfo_depth_slider.set(self.synth_state.lfo_depth_pct)
         self.filter_cutoff_slider.set(self.synth_state.filter_cutoff_hz)
         self.filter_resonance_slider.set(self.synth_state.filter_resonance)
-        self.lfo_shape_var.set(lfo_shape_label(self.synth_state.lfo_shape))
+        self._sync_lfo_waveform_ui()
         self.modulator_mode_var.set("Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz")
         self._sync_carrier_waveform_ui()
         self._sync_param_entries()
@@ -1278,6 +1329,8 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self._set_connection_controls(True)
         self._log(f"Auto-Reconnect successful: {port}")
+        self._send_lfo_table()
+        self._send_lfo()
         self._refresh_display()
 
     # Refreshes the port list
@@ -1437,7 +1490,7 @@ class SynthApp(ctk.CTk):
         )
         self._refresh_display()
 
-    # Dispatch function to mute sound (single voice)
+    # Function to dispatch a note off (single voice)
     def _dispatch_voice_off(self, voice_id: str) -> None:
         if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
@@ -1637,7 +1690,6 @@ class SynthApp(ctk.CTk):
                 packet = self.serial_client.send_lfo(
                     self.synth_state.lfo_rate_hz,
                     self.synth_state.lfo_depth_pct,
-                    self.synth_state.lfo_shape,
                     self.synth_state.filter_cutoff_hz,
                     self.synth_state.filter_resonance,
                 )
@@ -1650,6 +1702,38 @@ class SynthApp(ctk.CTk):
                 self.status_label.configure(text=f"Status: Send error ({exc})")
                 self._log(f"LFO send error: {exc}")
         self._refresh_display()
+
+    # Function to upload the current LFO cycle table (W chunks), not on every rate/depth slider move
+    def _send_lfo_table(self) -> None:
+        if not self.serial_client.is_connected:
+            return
+        try:
+            summary = self.serial_client.send_lfo_table(table_to_int16(self.synth_state.lfo_table))
+            self.synth_state.last_packet = summary
+            self._log(f"LFO table sent: {summary}")
+        except Exception as exc:
+            self.synth_state.connected = False
+            self.serial_client.disconnect()
+            self._set_connection_controls(False)
+            self.status_label.configure(text=f"Status: Send error ({exc})")
+            self._log(f"LFO table send error: {exc}")
+
+    # Function to schedule the LFO table send
+    def _schedule_lfo_table_send(self, delay_ms: int = 80) -> None:
+        if self._lfo_table_send_after is not None:
+            self.after_cancel(self._lfo_table_send_after)
+        self._lfo_table_send_after = self.after(delay_ms, self._flush_lfo_table_send)
+
+    # Function to flush the LFO table send
+    def _flush_lfo_table_send(self) -> None:
+        self._lfo_table_send_after = None
+        self._send_lfo_table()
+
+    # Function to cancel the LFO table send
+    def _cancel_lfo_table_send(self) -> None:
+        if self._lfo_table_send_after is not None:
+            self.after_cancel(self._lfo_table_send_after)
+            self._lfo_table_send_after = None
 
     # Function to handle the LFO rate changed event
     def _on_lfo_rate_changed(self, value: float) -> None:
@@ -1675,11 +1759,143 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self._send_lfo()
 
-    # Function to handle the LFO shape changed event
-    def _on_lfo_shape_changed(self, value: str) -> None:
-        self.synth_state.lfo_shape = lfo_shape_from_label(value)
+    # Function to handle the LFO preset changed event (i.e. S&H re-rolls on every click)
+    def _on_lfo_preset_clicked(self, preset: str) -> None:
+        self.synth_state.set_lfo_preset(preset)
+        self._sync_lfo_waveform_ui()
         self._save_config()
-        self._send_lfo()
+        self._send_lfo_table()
+
+    # Function to handle the LFO interpolation changed event
+    def _on_lfo_interp_changed(self, value: str) -> None:
+        if self._lfo_ui_syncing:
+            return
+        self.synth_state.lfo_interp = lfo_interp_from_label(value)
+        self.synth_state.rebuild_lfo_from_points(mark_custom=True)
+        self._sync_lfo_waveform_ui()
+        self._save_config()
+        self._send_lfo_table()
+
+    # Function to synchronize the LFO waveform UI with the synth state
+    def _sync_lfo_waveform_ui(self) -> None:
+        if not hasattr(self, "lfo_canvas"):
+            return
+        self._lfo_ui_syncing = True
+        active = self.synth_state.lfo_preset
+        for name, button in self._lfo_preset_buttons.items():
+            if name == active:
+                button.configure(fg_color="#1f6aa5", hover_color="#144870")
+            else:
+                button.configure(fg_color="gray30", hover_color="gray40")
+        self.lfo_interp_var.set(lfo_interp_label(self.synth_state.lfo_interp))
+        self._draw_lfo_canvas()
+        self._lfo_ui_syncing = False
+
+    # Function which returns the width, height, and padding of the LFO canvas
+    def _lfo_canvas_metrics(self) -> tuple[int, int, int, int]:
+        width = max(self.lfo_canvas.winfo_width(), 2)
+        height = max(self.lfo_canvas.winfo_height(), 2)
+        return width, height, 12, 10
+
+    # Function which converts sample index and value to x, y coordinates in canvas
+    def _lfo_canvas_xy(self, sample_index: float, value: float) -> tuple[float, float]:
+        width, height, pad_x, pad_y = self._lfo_canvas_metrics()
+        inner_w = max(1, width - 2 * pad_x)
+        inner_h = max(1, height - 2 * pad_y)
+        x = pad_x + (sample_index / LFO_WAVETABLE_SIZE) * inner_w
+        y = pad_y + (1.0 - (value + 1.0) / 2.0) * inner_h
+        return x, y
+
+    # Function which converts y coordinate in canvas to value (-1.0 to 1.0)
+    def _lfo_canvas_y_to_value(self, y: float) -> float:
+        _width, height, _pad_x, pad_y = self._lfo_canvas_metrics()
+        inner_h = max(1, height - 2 * pad_y)
+        value = 1.0 - 2.0 * (y - pad_y) / inner_h
+        return max(-1.0, min(1.0, value))
+
+    # Function which draws the LFO canvas
+    def _draw_lfo_canvas(self) -> None:
+        if not hasattr(self, "lfo_canvas"):
+            return
+        canvas = self.lfo_canvas
+        canvas.delete("all")
+        width, height, _pad_x, _pad_y = self._lfo_canvas_metrics()
+        if width < 20 or height < 20:
+            return
+
+        zero_left = self._lfo_canvas_xy(0, 0.0)
+        zero_right = self._lfo_canvas_xy(LFO_WAVETABLE_SIZE, 0.0)
+        canvas.create_line(zero_left[0], zero_left[1], zero_right[0], zero_right[1], fill="#3a3a3a")
+
+        table = self.synth_state.lfo_table
+        polyline: list[float] = []
+        for index, sample in enumerate(table):
+            x, y = self._lfo_canvas_xy(index, sample)
+            polyline.extend((x, y))
+        end_x, end_y = self._lfo_canvas_xy(LFO_WAVETABLE_SIZE, table[0])
+        polyline.extend((end_x, end_y))
+        canvas.create_line(*polyline, fill="#3b8ed0", width=2)
+
+        for i, sample_index in enumerate(point_indices()):
+            x, y = self._lfo_canvas_xy(int(sample_index), self.synth_state.lfo_points[i])
+            radius = 5
+            canvas.create_oval(
+                x - radius,
+                y - radius,
+                x + radius,
+                y + radius,
+                fill="#ffffff",
+                outline="#1f6aa5",
+                width=1,
+            )
+
+    # Function to handle the LFO canvas configure event
+    def _on_lfo_canvas_configure(self, _event) -> None:
+        self._draw_lfo_canvas()
+
+    # Function to handle the LFO canvas hit event
+    def _lfo_hit_handle(self, x: float, y: float) -> int | None:
+        best_index: int | None = None
+        best_dist = 14.0 ** 2
+        for i, sample_index in enumerate(point_indices()):
+            hx, hy = self._lfo_canvas_xy(int(sample_index), self.synth_state.lfo_points[i])
+            dist = (x - hx) ** 2 + (y - hy) ** 2
+            if dist < best_dist:
+                best_dist = dist
+                best_index = i
+        return best_index
+
+    # Function to apply the LFO point drag
+    def _apply_lfo_point_drag(self, y: float) -> None:
+        if self._lfo_drag_index is None:
+            return
+        points = list(self.synth_state.lfo_points)
+        points[self._lfo_drag_index] = self._lfo_canvas_y_to_value(y)
+        self.synth_state.lfo_points = points
+        self.synth_state.rebuild_lfo_from_points(mark_custom=True)
+        self._sync_lfo_waveform_ui()
+        self._schedule_lfo_table_send()
+
+    # Function to handle the LFO canvas press event
+    def _on_lfo_canvas_press(self, event) -> None:
+        self._lfo_drag_index = self._lfo_hit_handle(event.x, event.y)
+        if self._lfo_drag_index is not None:
+            self._apply_lfo_point_drag(event.y)
+
+    # Function to handle the LFO canvas motion event
+    def _on_lfo_canvas_motion(self, event) -> None:
+        if self._lfo_drag_index is None:
+            return
+        self._apply_lfo_point_drag(event.y)
+
+    # Function to handle the LFO canvas release event
+    def _on_lfo_canvas_release(self, _event) -> None:
+        if self._lfo_drag_index is None:
+            return
+        self._lfo_drag_index = None
+        self._cancel_lfo_table_send()
+        self._save_config()
+        self._send_lfo_table()
 
     # Function to handle the auto reconnect changed event
     def _on_auto_reconnect_changed(self) -> None:
@@ -1719,7 +1935,8 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self._set_connection_controls(True)
         self._log(f"Connected to {port}")
-        # Push the current global LFO + filter state to the freshly connected Teensy
+        # Push the current global LFO table + filter state to the freshly connected Teensy
+        self._send_lfo_table()
         self._send_lfo()
         self._refresh_display()
 

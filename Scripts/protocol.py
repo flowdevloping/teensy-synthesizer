@@ -1,7 +1,8 @@
 """
 Contains packet format for Teensy FM synth.
 
-Note packet format: voiceId,carrierHz,modHz,volumePct,modDepthPct,carrierWave
+Note packet format: 
+voiceId,carrierHz,modHz,volumePct,modDepthPct,carrierWave
 
 voiceId -1..7 = per-voice note on/off (-1 = all notes off)
 carrierHz  = carrier frequency in Hz (0 = note off)
@@ -11,16 +12,23 @@ modDepthPct  = modulation depth in percent (0..100%)
 carrierWave  = waveform ID of the Teensy Audio Library (0 sine, 1 saw, 2 square, 3 triangle, 4 wavetable)
 
 
-LFO/filter packet format: L,rate,depth,shape,cutoff,res
+LFO/filter packet format: 
+L,rate,depth,cutoff,res
 
 rate   = LFO frequency in Hz
 depth  = LFO depth in percent (0..100, 0 = no wobble)
-shape  = LFO shape ID (0 sine, 1 triangle, 2 ramp, 3 square)
 cutoff = filter cutoff frequency in Hz
 res    = filter resonance (Q)
 
-The LFO command uses its own "L," prefix (not the positional note format) because it is
-a global parameter, not a per-voice note.
+LFO wavetable packet format: 
+W,offset,count,v0,...,vN-1
+
+offset = sample index in the 256-sample RAM table
+count  = number of int16 samples in this chunk (typically 32)
+v*     = int16 samples (-32767..32767)
+
+The LFO commands use their own "L," / "W," prefixes because they are global
+parameters, not per-voice notes. The shape lives in the RAM table uploaded via W.
 """
 
 from dataclasses import dataclass
@@ -35,8 +43,10 @@ from safety_limits import (
     clamp_modulator_hz,
     clamp_volume_pct,
 )
-from waveforms import carrier_waveform_id, lfo_shape_id
+from lfo_waveform import LFO_TABLE_CHUNK_SIZE, LFO_WAVETABLE_SIZE
+from waveforms import carrier_waveform_id
 
+# Data class for the synth packet
 @dataclass(frozen=True)
 class SynthPacket:
     voice_id: int
@@ -46,7 +56,7 @@ class SynthPacket:
     mod_depth_pct: int
     carrier_wave: int
 
-
+# Function to build the note on packet
 def build_packet(
     carrier_hz: float,
     modulator_hz: float,
@@ -80,7 +90,7 @@ def build_packet(
         f"{packet.carrier_wave}\n"
     )
 
-
+# Function to build the note off packet
 def build_note_off(
     modulator_hz: float,
     volume_pct: int,
@@ -109,23 +119,35 @@ def build_note_off(
     )
 
 
+# Function to build the all notes off packet
 def build_all_notes_off(volume_pct: int = 0) -> str:
     return build_packet(0.0, 0.0, volume_pct, 0, pure_sine=True, voice_id=-1)
 
-
+# Function to build the LFO packets ('L' packets)
 def build_lfo_packet(
     rate_hz: float,
     depth_pct: int,
-    shape: str | int,
     cutoff_hz: float,
     resonance: float,
 ) -> str:
-    shape_value = shape if isinstance(shape, int) else lfo_shape_id(shape)
     return (
         "L,"
         f"{clamp_lfo_rate(rate_hz):.2f},"
         f"{clamp_lfo_depth_pct(depth_pct)},"
-        f"{int(shape_value)},"
         f"{clamp_filter_cutoff(cutoff_hz):.2f},"
         f"{clamp_filter_q(resonance):.2f}\n"
     )
+
+# Function to build the LFO table packets ('W' packets)
+def build_lfo_wavetable_packets(samples: list[int]) -> list[str]:
+    values = [max(-32767, min(32767, int(v))) for v in samples]
+    if len(values) < LFO_WAVETABLE_SIZE:
+        values = values + [0] * (LFO_WAVETABLE_SIZE - len(values))
+    else:
+        values = values[:LFO_WAVETABLE_SIZE]
+    packets: list[str] = []
+    for offset in range(0, LFO_WAVETABLE_SIZE, LFO_TABLE_CHUNK_SIZE):
+        chunk = values[offset : offset + LFO_TABLE_CHUNK_SIZE]
+        joined = ",".join(str(v) for v in chunk)
+        packets.append(f"W,{offset},{len(chunk)},{joined}\n")
+    return packets

@@ -17,6 +17,7 @@ from serial.tools import list_ports
 from protocol import (
     build_all_notes_off,
     build_lfo_packet,
+    build_lfo_wavetable_packets,
     build_note_off,
     build_packet,
 )
@@ -223,13 +224,19 @@ class SerialClient:
         self,
         rate_hz: float,
         depth_pct: int,
-        shape: str | int,
         cutoff_hz: float,
         resonance: float,
     ) -> str:
-        packet = build_lfo_packet(rate_hz, depth_pct, shape, cutoff_hz, resonance)
+        packet = build_lfo_packet(rate_hz, depth_pct, cutoff_hz, resonance)
         self._write_packet(packet)
         return packet.strip()
+
+    # Function to send the LFO wavetable packets ('W' packets)
+    def send_lfo_table(self, samples: list[int]) -> str:
+        packets = build_lfo_wavetable_packets(samples)
+        for packet in packets:
+            self._write_packet(packet)
+        return f"W,{len(packets)} chunks"
 
     # Function to write a packet to the Teensy
     def _write_packet(self, packet: str) -> None:

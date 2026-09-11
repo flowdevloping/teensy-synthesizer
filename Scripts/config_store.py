@@ -23,11 +23,16 @@ from safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
+from lfo_waveform import (
+    DEFAULT_LFO_INTERP,
+    DEFAULT_LFO_PRESET,
+    default_lfo_points,
+    default_lfo_table,
+    lfo_state_from_mapping,
+)
 from waveforms import (
     DEFAULT_CARRIER_WAVEFORM,
-    DEFAULT_LFO_SHAPE,
     clamp_carrier_waveform,
-    clamp_lfo_shape,
 )
 @dataclass
 class AppConfig:
@@ -43,7 +48,10 @@ class AppConfig:
     mod_depth_pct: int = 20
     lfo_rate_hz: float = LFO_DEFAULT_RATE_HZ
     lfo_depth_pct: int = LFO_DEFAULT_DEPTH_PCT
-    lfo_shape: str = DEFAULT_LFO_SHAPE
+    lfo_preset: str = DEFAULT_LFO_PRESET
+    lfo_interp: str = DEFAULT_LFO_INTERP
+    lfo_points: list[float] = field(default_factory=default_lfo_points)
+    lfo_table: list[float] = field(default_factory=default_lfo_table)
     filter_cutoff_hz: float = FILTER_DEFAULT_CUTOFF_HZ
     filter_resonance: float = FILTER_DEFAULT_Q
     active_preset: str = "Standard"
@@ -51,7 +59,7 @@ class AppConfig:
     last_setup_name: str = ""
 
 
-# Loads the config from the config file defined in CONFIG_PATH
+# Function to load the config from the config file defined in CONFIG_PATH
 def load_config() -> AppConfig:
     if not CONFIG_PATH.exists():
         return AppConfig()
@@ -60,6 +68,8 @@ def load_config() -> AppConfig:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return AppConfig()
+
+    _lfo_preset, _lfo_interp, _lfo_points, _lfo_table = lfo_state_from_mapping(data)
 
     return AppConfig(
         last_port=data.get("last_port"),
@@ -79,7 +89,10 @@ def load_config() -> AppConfig:
         mod_depth_pct=clamp_mod_depth_pct(int(data.get("mod_depth_pct", 20))),
         lfo_rate_hz=clamp_lfo_rate(float(data.get("lfo_rate_hz", LFO_DEFAULT_RATE_HZ))),
         lfo_depth_pct=clamp_lfo_depth_pct(int(data.get("lfo_depth_pct", LFO_DEFAULT_DEPTH_PCT))),
-        lfo_shape=clamp_lfo_shape(data.get("lfo_shape", DEFAULT_LFO_SHAPE)),
+        lfo_preset=_lfo_preset,
+        lfo_interp=_lfo_interp,
+        lfo_points=_lfo_points,
+        lfo_table=_lfo_table,
         filter_cutoff_hz=clamp_filter_cutoff(float(data.get("filter_cutoff_hz", FILTER_DEFAULT_CUTOFF_HZ))),
         filter_resonance=clamp_filter_q(float(data.get("filter_resonance", FILTER_DEFAULT_Q))),
         active_preset=str(data.get("active_preset", "Standard")),
@@ -88,7 +101,7 @@ def load_config() -> AppConfig:
     )
 
 
-# Saves the config to the config file defined in CONFIG_PATH
+# Function to save the config to the config file defined in CONFIG_PATH
 def save_config(config: AppConfig) -> None:
     data = {
         "last_port": config.last_port,
@@ -103,7 +116,10 @@ def save_config(config: AppConfig) -> None:
         "mod_depth_pct": config.mod_depth_pct,
         "lfo_rate_hz": config.lfo_rate_hz,
         "lfo_depth_pct": config.lfo_depth_pct,
-        "lfo_shape": config.lfo_shape,
+        "lfo_preset": config.lfo_preset,
+        "lfo_interp": config.lfo_interp,
+        "lfo_points": list(config.lfo_points),
+        "lfo_table": list(config.lfo_table),
         "filter_cutoff_hz": config.filter_cutoff_hz,
         "filter_resonance": config.filter_resonance,
         "active_preset": config.active_preset,
