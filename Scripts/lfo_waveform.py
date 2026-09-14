@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 LFO_WAVETABLE_SIZE = 256
-LFO_POINT_COUNT = 8
+LFO_POINT_COUNT = 16
 LFO_TABLE_CHUNK_SIZE = 32
 
 LFO_INTERP_LINEAR = "linear"

@@ -31,8 +31,10 @@ Routing functions:
 -> Routing functions to EITHER play sound on audio module OR on local device
 - _play_local_voice:
 -> Function to play sound on local device
-- _note_on, _note_off:
--> Functions to handle the note pressed and released events
+- _note_on, _note_off, _retune_voice:
+-> Functions to handle the note pressed, released, and pitch-glide events
+- speak:
+-> Plays a conlang utterance through the phrase player
 - _send_current_state:
 -> Function to send the current state to the audio module
 
@@ -48,7 +50,16 @@ from tkinter import Canvas, Entry, Text
 import customtkinter as ctk # Python UI library based tkinter (standart python GUI toolkit)
 
 from audio_engine import LocalAudioEngine
+from conlang_lexicon import (
+    LEXEME_ORDER,
+    LEXEMES,
+    UTTERANCE_ORDER,
+    UTTERANCES,
+    get_utterance,
+    meanings_label,
+)
 from config_store import AppConfig, load_config, save_config
+from phrase_player import CONLANG_VOICE_ID, PhrasePlayer, compile_utterance
 from lfo_waveform import (
     LFO_PRESET_LABELS,
     LFO_PRESET_ORDER,
@@ -146,6 +157,14 @@ class SynthApp(ctk.CTk):
         self._lfo_table_send_after: object | None = None
         self._lfo_ui_syncing = False
         self._lfo_preset_buttons: dict[str, ctk.CTkButton] = {}
+        self._phrase_player = PhrasePlayer(
+            schedule=self._schedule_phrase_event,
+            cancel=self._cancel_phrase_event,
+            on_note_on=lambda freq: self._note_on(CONLANG_VOICE_ID, freq),
+            on_retune=lambda freq: self._retune_voice(CONLANG_VOICE_ID, freq),
+            on_note_off=lambda: self._note_off(CONLANG_VOICE_ID),
+            on_finished=self._on_phrase_finished,
+        )
 
         self._build_ui()
         self._disable_all_slider_scrolling()
@@ -388,8 +407,10 @@ class SynthApp(ctk.CTk):
             text_color="gray70",
         ).grid(row=2, column=0, padx=12, pady=(0, 8), sticky="w")
 
+        self._build_conlang_panel(controls_frame)
+
         sound_frame = ctk.CTkFrame(controls_frame)
-        sound_frame.grid(row=3, column=0, padx=0, pady=(0, 8), sticky="ew")
+        sound_frame.grid(row=4, column=0, padx=0, pady=(0, 8), sticky="ew")
         sound_frame.grid_columnconfigure(0, weight=1)
 
         sound_header = ctk.CTkFrame(sound_frame, fg_color="transparent")
@@ -438,7 +459,7 @@ class SynthApp(ctk.CTk):
         self._show_preset_buttons()
 
         setup_frame = ctk.CTkFrame(controls_frame)
-        setup_frame.grid(row=4, column=0, pady=(0, 8), sticky="ew")
+        setup_frame.grid(row=5, column=0, pady=(0, 8), sticky="ew")
         setup_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(setup_frame, text="Setups", font=ctk.CTkFont(size=15, weight="bold")).grid(
             row=0, column=0, columnspan=3, padx=12, pady=(12, 6), sticky="w"
@@ -481,6 +502,67 @@ class SynthApp(ctk.CTk):
 
         self.log_text = ctk.CTkTextbox(log_frame, height=90, state="disabled")
         self.log_text.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="ew")
+
+    def _build_conlang_panel(self, parent: ctk.CTkFrame) -> None:
+        conlang_frame = ctk.CTkFrame(parent)
+        conlang_frame.grid(row=3, column=0, padx=0, pady=(0, 8), sticky="ew")
+        conlang_frame.grid_columnconfigure(0, weight=1)
+
+        header = ctk.CTkFrame(conlang_frame, fg_color="transparent")
+        header.grid(row=0, column=0, padx=12, pady=(12, 6), sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            header, text="Conlang", font=ctk.CTkFont(size=15, weight="bold")
+        ).grid(row=0, column=0, sticky="w")
+
+        play_row = ctk.CTkFrame(conlang_frame, fg_color="transparent")
+        play_row.grid(row=1, column=0, padx=12, pady=(0, 6), sticky="ew")
+        play_row.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(play_row, text="Utterance").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        utterance_labels = [UTTERANCES[uid].label for uid in UTTERANCE_ORDER]
+        self.conlang_utterance_var = ctk.StringVar(value=utterance_labels[0])
+        self.conlang_utterance_menu = ctk.CTkOptionMenu(
+            play_row,
+            variable=self.conlang_utterance_var,
+            values=utterance_labels,
+            width=180,
+        )
+        self.conlang_utterance_menu.grid(row=0, column=1, padx=(0, 8), sticky="w")
+        ctk.CTkButton(play_row, text="Play", width=80, command=self._on_conlang_play).grid(
+            row=0, column=2, padx=(0, 8)
+        )
+        ctk.CTkButton(
+            play_row,
+            text="Stop",
+            width=80,
+            fg_color="#8b0000",
+            hover_color="#a40000",
+            command=self._on_stop,
+        ).grid(row=0, column=3)
+
+        lexeme_row = ctk.CTkFrame(conlang_frame, fg_color="transparent")
+        lexeme_row.grid(row=2, column=0, padx=12, pady=(0, 6), sticky="ew")
+        ctk.CTkLabel(lexeme_row, text="Words").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        for index, lexeme_id in enumerate(LEXEME_ORDER):
+            lexeme = LEXEMES[lexeme_id]
+            ctk.CTkButton(
+                lexeme_row,
+                text=lexeme.meaning,
+                width=88,
+                command=lambda item=lexeme_id: self.speak([item]),
+            ).grid(row=0, column=index + 1, padx=2, pady=2)
+
+        self.conlang_status_label = ctk.CTkLabel(
+            conlang_frame, text="Speaking: —", anchor="w"
+        )
+        self.conlang_status_label.grid(row=3, column=0, padx=12, pady=(0, 4), sticky="w")
+        ctk.CTkLabel(
+            conlang_frame,
+            text="Timbre: Sine or Triangle with little FM fits the conlang character best.",
+            text_color="gray70",
+            anchor="w",
+        ).grid(row=4, column=0, padx=12, pady=(0, 12), sticky="w")
 
     def _build_fm_panel(self) -> None:
         fm = self.fm_panel_frame
@@ -1551,7 +1633,7 @@ class SynthApp(ctk.CTk):
             self._log("All-Notes-Off (display only)")
 
     # Function to change sound when sound is already playing
-    def _dispatch_param_update(self) -> None:
+    def _dispatch_param_update(self, quiet: bool = False) -> None:
         if not self.synth_state.is_playing:
             return
 
@@ -1570,9 +1652,10 @@ class SynthApp(ctk.CTk):
                         carrier_waveform=self.synth_state.carrier_waveform,
                     )
                     self.synth_state.last_packet = packet
-                self._log(
-                    f"Teensy update: {len(self.synth_state.active_voices)} voices"
-                )
+                if not quiet:
+                    self._log(
+                        f"Teensy update: {len(self.synth_state.active_voices)} voices"
+                    )
             except Exception as exc:
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
@@ -1590,7 +1673,8 @@ class SynthApp(ctk.CTk):
             self.synth_state.last_packet = (
                 f"local:update:{len(self.synth_state.active_voices)} voices"
             )
-            self._log(self.synth_state.last_packet)
+            if not quiet:
+                self._log(self.synth_state.last_packet)
             self._refresh_display()
 
     # Function to play sound on local device
@@ -1621,6 +1705,59 @@ class SynthApp(ctk.CTk):
         self._refresh_display()
         self._dispatch_voice_on(voice_id)
 
+    # Function to retune a held voice without retriggering the envelope
+    def _retune_voice(self, voice_id: str, frequency_hz: float) -> None:
+        modulator = self._modulator_for_carrier(frequency_hz)
+        if not self.synth_state.retune(voice_id, frequency_hz, modulator):
+            self._note_on(voice_id, frequency_hz)
+            return
+        self._dispatch_param_update(quiet=True)
+
+    # Function to play a Conlang utterance
+    def speak(self, lexeme_ids: list[str]) -> None:
+        try:
+            events = compile_utterance(lexeme_ids)
+            label = meanings_label(lexeme_ids)
+        except ValueError as exc:
+            self._log(f"Conlang speak failed: {exc}")
+            return
+        self._stop_phrase(release=True)
+        self.conlang_status_label.configure(text=f"Speaking: {label}")
+        self._phrase_player.play(events)
+        self._log(f"Conlang speak: {label}")
+
+    # Function to handle the Conlang play event
+    def _on_conlang_play(self) -> None:
+        label = self.conlang_utterance_var.get()
+        utterance_id = next(
+            (uid for uid in UTTERANCE_ORDER if UTTERANCES[uid].label == label),
+            None,
+        )
+        if utterance_id is None:
+            self._log(f"Unknown utterance: {label}")
+            return
+        utterance = get_utterance(utterance_id)
+        self.speak(list(utterance.lexeme_ids))
+
+    # Wrapper function to schedule a phrase event
+    def _schedule_phrase_event(self, delay_ms: int, callback) -> object:
+        return self.after(max(0, int(delay_ms)), callback)
+
+    # Wrapper function to cancel a phrase event
+    def _cancel_phrase_event(self, token: object) -> None:
+        self.after_cancel(token)
+
+    # Wrapper function to stop a phrase event
+    def _stop_phrase(self, release: bool = True) -> None:
+        self._phrase_player.stop()
+        if release:
+            self._note_off(CONLANG_VOICE_ID)
+
+    # Function to handle the phrase finished event
+    def _on_phrase_finished(self) -> None:
+        self.conlang_status_label.configure(text="Speaking: —")
+        self._log("Conlang phrase finished")
+
     # Function to mute sound on local device
     # This function is called when a note is released on the PC's keyboard
     def _note_off(self, voice_id: str) -> None:
@@ -1648,11 +1785,13 @@ class SynthApp(ctk.CTk):
 
     # Function to handle the stop event
     def _on_stop(self) -> None:
+        self._stop_phrase(release=False)
         self._pressed_keys.clear()
         for key in list(self._note_buttons):
             self._set_note_button_pressed(key, False)
         self.synth_state.all_notes_off()
         self._dispatch_all_notes_off()
+        self.conlang_status_label.configure(text="Speaking: —")
         self._refresh_display()
 
     # Function to handle the modulator changed event
@@ -1968,6 +2107,7 @@ class SynthApp(ctk.CTk):
 
     # Function to handle the window close event
     def _on_close(self) -> None:
+        self._on_stop()
         self.unbind_all("<KeyPress>")
         self.unbind_all("<KeyRelease>")
         self.midi_handler.stop()

@@ -165,7 +165,7 @@ AudioEffectEnvelope* envelopes[NUM_VOICES] = {
 };
 
 // Parameters
-const float MAX_CARRIER_HZ = 2000.0f; 
+const float MAX_CARRIER_HZ = 4000.0f; 
 const float MAX_MODULATOR_HZ = 300.0f;
 const float MAX_OUTPUT_AMPLITUDE = 1.0f; 
 const float MAX_MOD_DEPTH = 1.0f; 

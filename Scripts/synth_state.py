@@ -142,6 +142,16 @@ class SynthState:
         self._sync_legacy_carrier()
         return True
 
+    # Updates pitch of an already-held voice without retriggering note-on
+    def retune(self, voice_id: str, carrier_hz: float, modulator_hz: float) -> bool:
+        voice = self.active_voices.get(voice_id)
+        if voice is None:
+            return False
+        voice.carrier_hz = carrier_hz
+        voice.modulator_hz = modulator_hz
+        self._sync_legacy_carrier()
+        return True
+
     # Turns off all voices and resets the carrier frequency
     def all_notes_off(self) -> None:
         self.active_voices.clear()
