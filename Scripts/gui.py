@@ -1,53 +1,14 @@
-"""
-Contains main logic of CustomTkinter GUI application
+""" Contains GUI building and input handling functionalities.
 
-Overview of important functions: 
--------------------------------------------------------
-Building up GUI window:
-- _build_ui:
--> Builds up the GUI window
-
-PC Keyboard input handling:
-- _on_key_press, _on_key_release:
--> PC Keyboard input handling 
-
-MIDI input handling:
-- _on_midi_connect, _on_midi_disconnect:
--> MIDI input handling
-
-Callback functions for state changes:
-- _on_note_pressed, _on_stop, _on_modulator_changed, _on_volume_changed, _on_mod_depth_changed, _on_auto_reconnect_changed:
--> Callbacks for changing states, i. e. volume is changed and should be applied
--> Changing the respecive state, updating GUI, sending package to Teensy
-
-Connection logic functions:
-- _on_connect, _on_disconnect: 
--> For Teensy communication
-- _on_midi_connect, _on_midi_disconnect:
--> For MIDI-Keyboard connection
-
-Routing functions:
-- _dispatch_voice_on, _dispatch_voice_off, _dispatch_all_notes_off, _dispatch_param_update:
--> Routing functions to EITHER play sound on audio module OR on local device
-- _play_local_voice:
--> Function to play sound on local device
-- _note_on, _note_off, _retune_voice:
--> Functions to handle the note pressed, released, and pitch-glide events
-- speak:
--> Plays a conlang utterance through the phrase player
-- _send_current_state:
--> Function to send the current state to the audio module
-
-Config loading and saving:
-- load_config, save_config:
--> Loads and saves the configuration from/to the config.json file
--------------------------------------------------------
+Hardware Dependencies: 
+- (optional): Teensy 4.1 connected via USB + MAX98357A + Visaton FRWS 5 4 Ohm 
+- (optional): MIDI Keyboard connected via USB
 """
 
 from datetime import datetime
 from tkinter import Canvas, Entry, Text
 
-import customtkinter as ctk # Python UI library based tkinter (standart python GUI toolkit)
+import customtkinter as ctk # Python UI library based on tkinter (standard Python GUI toolkit)
 
 from audio_engine import LocalAudioEngine
 from conlang_lexicon import (
@@ -109,9 +70,41 @@ from waveforms import (
     is_wavetable_carrier,
 )
 
-# Class object for GUI application based on customtkinter
 class SynthApp(ctk.CTk):
+    """Main class of customtkinter module to build custom GUI. 
+
+    Contains all GUI functionalities from building up UI elements (text, input-fields, buttons)
+    to handling input. 
+
+    Args: 
+        title (str): Title of the window.
+        geometry (str): Width and height of the window in pixels.
+        minsize (tuple[int, int]): Minimum width and height of the window in pixels.
+        config (AppConfig): Configuration object.
+
+        key_freqs (dict[str, float]): Frequencies mapped to the PC keyboard keys ('a', 's', 'd', 'f', 'g', 'h', 'j', 'k').
+        
+        synth_state (SynthState): Synth state object (see synth_state.py).
+        serial_client (SerialClient): Serial client object (see serial_client.py).
+        midi_handler (MidiInputHandler): Midi input handler object (see midi_input.py).
+        audio_engine (LocalAudioEngine): Local audio engine object (see audio_engine.py).
+        _connect_in_progress (bool): Flag to indicate if a connection is in progress.
+        _midi_connect_in_progress (bool): Flag to indicate if a MIDI connection is in progress.
+        _pressed_keys (set[str]): Set of pressed keys.
+        _note_buttons (dict[str, ctk.CTkButton]): Dictionary of note buttons.
+        _key_freq_entries (dict[str, ctk.CTkEntry]): Dictionary of key frequency entries.
+        _note_button_default_color (str | tuple[str, str] | None): Default color of the note buttons.
+        _lfo_drag_index (int | None): Index of the LFO drag handle.
+        _lfo_table_send_after (object | None): Timer object for sending the LFO table.
+        _lfo_ui_syncing (bool): Flag to indicate if the LFO UI is syncing.
+        _lfo_preset_buttons (dict[str, ctk.CTkButton]): Dictionary of L preset buttons.
+        _phrase_player (PhrasePlayer): Phrase player object (see phrase_player.py).
+    """
+
     def __init__(self) -> None:
+        """ Creates GUI window initially.
+        """
+
         super().__init__()
 
         ctk.set_appearance_mode("dark")
@@ -178,8 +171,13 @@ class SynthApp(ctk.CTk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-    # Function to build up GUI window (COM-Port/MIDI Selection, buttons, slider, ...)
     def _build_ui(self) -> None:
+        """Build up the high level areas of the UI.
+
+        Defines layout and builds up the connection, scroll and log panels.
+        Calls functions to build remaining panels.
+        """
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
@@ -659,7 +657,6 @@ class SynthApp(ctk.CTk):
         )
         self._set_modulator_mode_ui()
 
-    # Builds the global LFO -> filter cutoff panel
     def _build_lfo_panel(self) -> None:
         lfo = self.lfo_panel_frame
         lfo.grid_columnconfigure(0, weight=1)
@@ -775,15 +772,15 @@ class SynthApp(ctk.CTk):
             FILTER_MIN_Q, FILTER_MAX_Q, self._on_filter_resonance_changed, decimals=2,
         )
 
-    # Adds a labeled slider (+ optional numeric entry) to the UI
     def _add_labeled_slider(
-        self,
-        parent: ctk.CTkFrame,
-        row: int,
-        label: ctk.CTkLabel,
-        slider: ctk.CTkSlider,
-        entry: ctk.CTkEntry | None = None,
-    ) -> None:
+            self,
+            parent: ctk.CTkFrame,
+            row: int,
+            label: ctk.CTkLabel,
+            slider: ctk.CTkSlider,
+            entry: ctk.CTkEntry | None = None,
+        ) -> None:
+
         label_row = row * 2 + 1
         control_row = row * 2 + 2
         label.grid(row=label_row, column=0, columnspan=2, padx=0, pady=(6, 2), sticky="w")
@@ -850,7 +847,6 @@ class SynthApp(ctk.CTk):
 
         walk(self)
 
-    # Disables slider change on scroll
     def _disable_slider_scroll(self, slider: ctk.CTkSlider) -> None:
         canvas = getattr(slider, "_canvas", None)
         if canvas is None:
@@ -873,7 +869,6 @@ class SynthApp(ctk.CTk):
         else:
             self.preset_buttons_frame.grid_remove()
 
-    # Refreshes the setup list in the UI
     def _refresh_setup_list(self) -> None:
         setups = list_setups()
         values = setups or ["No setups"]
@@ -881,7 +876,6 @@ class SynthApp(ctk.CTk):
         preferred = self.config.last_setup_name
         self.setup_load_var.set(preferred if preferred in setups else values[0])
 
-    # Gets the current setup 
     def _current_setup(self) -> SynthSetup:
         name = self.setup_name_var.get().strip() or self.config.last_setup_name or "Untitled"
         return SynthSetup(
@@ -889,7 +883,6 @@ class SynthApp(ctk.CTk):
             params=self.synth_state.setup_params_dict(), notes=self.setup_notes_entry.get().strip(),
         )
 
-    # Saves the current setup to the file system
     def _save_setup(self) -> None:
         setup = self._current_setup()
         path = save_setup(setup)
@@ -899,7 +892,6 @@ class SynthApp(ctk.CTk):
         self._refresh_setup_list()
         self._log(f"Setup saved: {path.name}")
 
-    # Loads a setup from the file system and applies it to the synth state
     def _load_setup(self) -> None:
         name = self.setup_load_var.get()
         setup = load_setup(name)
@@ -920,13 +912,11 @@ class SynthApp(ctk.CTk):
         self._send_lfo()
         self._log(f"Setup loaded: {setup.name}")
 
-    # Exports the current setup to a specification file
     def _export_setup_spec(self) -> None:
         setup = self._current_setup()
         path = export_hiwi_spec(setup)
         self._log(f"Spec exported: {path.name}")
 
-    # Creates a value block
     def _create_value_block(
         self, parent: ctk.CTkFrame, column: int, title: str, initial_value: str
     ) -> ctk.CTkLabel:
@@ -944,14 +934,12 @@ class SynthApp(ctk.CTk):
         value_label.pack(padx=12, pady=(0, 12))
         return value_label
 
-    # Binding pc keyboard buttons to respective functions
     def _setup_keyboard_bindings(self) -> None:
         self.bind_all("<KeyPress>", self._on_key_press, add="+")
         self.bind_all("<KeyRelease>", self._on_key_release, add="+")
         self.focus_set()
         self._log("Laptop keyboard active: A S D F G H J K")
 
-    # Checks if the keyboard event should be ignored (text fields have exclusive focus)
     def _should_ignore_keyboard(self, event: object) -> bool:
         widget = getattr(event, "widget", None)
         if widget is None:
@@ -968,7 +956,6 @@ class SynthApp(ctk.CTk):
             current = getattr(current, "master", None)
         return False
 
-    # Normalizes the keyboard event
     def _normalize_key(self, event: object) -> str | None:
         char = getattr(event, "char", "") or ""
         keysym = getattr(event, "keysym", "") or ""
@@ -981,7 +968,6 @@ class SynthApp(ctk.CTk):
             return keysym_lower
         return None
 
-    # Sets the note button pressed state
     def _set_note_button_pressed(self, key: str, pressed: bool) -> None:
         button = self._note_buttons.get(key)
         if button is None:
@@ -1006,7 +992,6 @@ class SynthApp(ctk.CTk):
         self._note_buttons[key].configure(text=f"{key.upper()}\n{value:.2f} Hz")
         self._save_config()
 
-    # Restores the default keyboard key -> frequency mapping
     def _reset_key_frequencies(self) -> None:
         self.synth_state.key_frequencies = dict(PC_KEYBOARD_MAPPING)
         for key, freq in self.synth_state.key_frequencies.items():
@@ -1019,13 +1004,11 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self._log("Keyboard frequencies reset to default")
 
-    # Adjusts the volume
     def _adjust_volume(self, delta: int) -> None:
         new_volume = clamp_volume_pct(self.synth_state.volume_pct + delta)
         self.volume_slider.set(new_volume)
         self._on_volume_changed(new_volume)
 
-    # Handles the key press event
     def _on_key_press(self, event: object) -> None:
         if self._should_ignore_keyboard(event):
             return
@@ -1056,7 +1039,6 @@ class SynthApp(ctk.CTk):
             if index < len(preset_names):
                 self._apply_preset(preset_names[index])
 
-    # Handles the key release event
     def _on_key_release(self, event: object) -> None:
         if self._should_ignore_keyboard(event):
             return
@@ -1069,7 +1051,6 @@ class SynthApp(ctk.CTk):
         self._set_note_button_pressed(key, False)
         self._note_off(key)
 
-    # Logs a message
     def _log(self, message: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
         line = f"[{timestamp}] {message}\n"
@@ -1078,7 +1059,6 @@ class SynthApp(ctk.CTk):
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
 
-    # Saves the configuration
     def _save_config(self) -> None:
         self.config.key_frequencies = dict(self.synth_state.key_frequencies)
         self.config.carrier_waveform = self.synth_state.carrier_waveform
@@ -1101,7 +1081,6 @@ class SynthApp(ctk.CTk):
         self.config.last_setup_name = self.setup_name_var.get().strip()
         save_config(self.config)
 
-    # Refreshes the MIDI list
     def _refresh_midi_list(self) -> None:
         ports = list_midi_ports()
         values = ports if ports else ["No MIDI port found"]
@@ -1116,7 +1095,6 @@ class SynthApp(ctk.CTk):
         else:
             self.midi_port_var.set(values[0])
 
-    # Sets the MIDI controls
     def _set_midi_controls(self, connected: bool) -> None:
         connect_state = "disabled" if connected or self._midi_connect_in_progress else "normal"
         disconnect_state = "disabled" if not connected else "normal"
@@ -1127,7 +1105,6 @@ class SynthApp(ctk.CTk):
         self.midi_port_menu.configure(state=port_state)
         self.refresh_midi_button.configure(state=port_state)
 
-    # Handles the MIDI connect event
     def _on_midi_connect(self) -> None:
         port = self.midi_port_var.get()
         if not port or port == "No MIDI port found":
@@ -1149,7 +1126,6 @@ class SynthApp(ctk.CTk):
         )
         self.midi_handler.start(port, callbacks)
 
-    # Handles the MIDI connected event
     def _handle_midi_connected(self, port: str) -> None:
         self._midi_connect_in_progress = False
         self.config.last_midi_port = port
@@ -1158,14 +1134,12 @@ class SynthApp(ctk.CTk):
         self.midi_status_label.configure(text=f"MIDI: Connected ({port})")
         self._log(f"MIDI connected: {port}")
 
-    # Handles the MIDI disconnected event
     def _handle_midi_disconnected(self) -> None:
         self._midi_connect_in_progress = False
         self._set_midi_controls(False)
         self.midi_status_label.configure(text="MIDI: Disconnected")
         self._log("MIDI disconnected")
 
-    # Handles the MIDI error event
     def _handle_midi_error(self, message: str) -> None:
         self._midi_connect_in_progress = False
         self.midi_handler.stop()
@@ -1173,7 +1147,6 @@ class SynthApp(ctk.CTk):
         self.midi_status_label.configure(text=f"MIDI: Error ({message})")
         self._log(f"MIDI Error: {message}")
 
-    # Handles the MIDI disconnect event
     def _on_midi_disconnect(self) -> None:
         port = self.midi_handler.port or self.midi_port_var.get()
         self.midi_handler.stop()
@@ -1181,11 +1154,9 @@ class SynthApp(ctk.CTk):
         self.midi_status_label.configure(text="MIDI: Disconnected")
         self._log(f"MIDI disconnected from {port}")
 
-    # Handles the MIDI note on event
     def _on_midi_note_on(self, note: int, frequency_hz: float) -> None:
         self._note_on(f"midi:{note}", frequency_hz)
 
-    # Handles the MIDI note off event
     def _on_midi_note_off(self, note: int) -> None:
         self._note_off(f"midi:{note}")
 
@@ -1205,7 +1176,6 @@ class SynthApp(ctk.CTk):
             and not self.serial_client.is_connected
         )
 
-    # Refreshes the local audio status
     def _refresh_local_audio_status(self) -> None:
         if not hasattr(self, "local_audio_status_label"):
             return
@@ -1219,7 +1189,6 @@ class SynthApp(ctk.CTk):
             text = "Local: disabled"
         self.local_audio_status_label.configure(text=text)
 
-    # Handles the local audio changed event
     def _on_local_audio_changed(self) -> None:
         self._save_config()
         enabled = self.local_audio_var.get()
@@ -1228,7 +1197,6 @@ class SynthApp(ctk.CTk):
             self.audio_engine.all_notes_off()
         self._refresh_local_audio_status()
 
-    # Sets the modulator mode UI
     def _set_modulator_mode_ui(self) -> None:
         is_ratio = self.synth_state.modulator_mode == "ratio"
         if is_ratio:
@@ -1246,11 +1214,9 @@ class SynthApp(ctk.CTk):
             self.modulator_slider.grid()
             self.modulator_entry.grid()
 
-    # Marks the custom preset
     def _mark_custom_preset(self) -> None:
         self.synth_state.active_preset = "Custom"
 
-    # Applies a preset
     def _apply_preset(self, preset_name: str) -> None:
         preset = FM_PRESETS.get(preset_name)
         if preset is None:
@@ -1265,7 +1231,6 @@ class SynthApp(ctk.CTk):
             self._recompute_all_voice_modulators()
             self._dispatch_param_update()
 
-    # Syncs the mode controls
     def _sync_mode_controls(self) -> None:
         self.modulator_slider.set(self.synth_state.modulator_hz)
         self.ratio_slider.set(self.synth_state.modulator_ratio)
@@ -1292,7 +1257,7 @@ class SynthApp(ctk.CTk):
         self._set_entry_text(self.filter_cutoff_entry, float(self.synth_state.filter_cutoff_hz), 0)
         self._set_entry_text(self.filter_resonance_entry, float(self.synth_state.filter_resonance), 2)
 
-    # Shows the active carrier: either one of the basic waveforms or the Teensy wavetable
+    # Shows the active carrier: Either one of the basic waveforms or the Teensy wavetable
     def _sync_carrier_waveform_ui(self) -> None:
         if not hasattr(self, "wavetable_button"):
             return
@@ -1306,7 +1271,6 @@ class SynthApp(ctk.CTk):
             )
             self.wavetable_button.configure(fg_color="gray30", hover_color="gray40")
 
-    # Handles the carrier waveform changed event
     def _on_carrier_waveform_changed(self, value: str) -> None:
         self.synth_state.carrier_waveform = carrier_waveform_from_label(value)
         self._sync_carrier_waveform_ui()
@@ -1318,7 +1282,6 @@ class SynthApp(ctk.CTk):
         if self.synth_state.is_playing:
             self._dispatch_param_update()
 
-    # Handles the selection of the wavetable that is stored on the Teensy
     def _on_wavetable_carrier_selected(self) -> None:
         if is_wavetable_carrier(self.synth_state.carrier_waveform):
             return
@@ -1337,7 +1300,6 @@ class SynthApp(ctk.CTk):
         if self.synth_state.is_playing:
             self._dispatch_param_update()
 
-    # Handles the modulator mode changed event
     def _on_modulator_mode_changed(self, value: str) -> None:
         self.synth_state.modulator_mode = "ratio" if value == "Ratio" else "fixed"
         if self.synth_state.modulator_mode == "ratio" and self.synth_state.carrier_hz is not None:
@@ -1358,7 +1320,6 @@ class SynthApp(ctk.CTk):
             self._recompute_all_voice_modulators()
             self._dispatch_param_update()
 
-    # Handles the ratio changed event
     def _on_ratio_changed(self, value: float) -> None:
         self.synth_state.modulator_ratio = clamp_modulator_ratio(value)
         if self.synth_state.carrier_hz is not None:
@@ -1392,7 +1353,6 @@ class SynthApp(ctk.CTk):
         )
         self.serial_client.start_watchdog(callbacks)
 
-    # Handles the connection lost event
     def _handle_connection_lost(self) -> None:
         self.synth_state.connected = False
         self.synth_state.port = None
@@ -1401,7 +1361,6 @@ class SynthApp(ctk.CTk):
         self._log("Connection lost")
         self._refresh_local_audio_status()
 
-    # Handles the auto-reconnected event
     def _handle_auto_reconnected(self, port: str) -> None:
         self._connect_in_progress = False
         self.synth_state.connected = True
@@ -1415,7 +1374,6 @@ class SynthApp(ctk.CTk):
         self._send_lfo()
         self._refresh_display()
 
-    # Refreshes the port list
     def _refresh_port_list(self) -> None:
         ports = list_com_ports()
         values = ports if ports else ["No port found"]
@@ -1430,7 +1388,6 @@ class SynthApp(ctk.CTk):
         else:
             self.port_var.set(values[0])
 
-    # Sets the connection controls
     def _set_connection_controls(self, connected: bool) -> None:
         connect_state = "disabled" if connected or self._connect_in_progress else "normal"
         disconnect_state = "disabled" if not connected else "normal"
@@ -1448,7 +1405,6 @@ class SynthApp(ctk.CTk):
             return f"Morph: {pct} %"
         return f"Modulator depth (FM intensity): {pct} %"
 
-    # Refreshes the UI displays
     def _refresh_display(self) -> None:
         self.carrier_value_label.configure(text=self.synth_state.carrier_display())
         self.modulator_value_label.configure(text=self.synth_state.modulator_display())
@@ -1498,18 +1454,17 @@ class SynthApp(ctk.CTk):
             self.synth_state.modulator_ratio,
         )
 
-    # Recomputes all voice modulators
     def _recompute_all_voice_modulators(self) -> None:
         self.synth_state.update_voice_modulators(self._modulator_for_carrier)
 
-    # Gets the voice tuples
     def _voice_tuples(self) -> list[tuple[str, float, float]]:
         return [
             (v.voice_id, v.carrier_hz, v.modulator_hz)
             for v in self.synth_state.active_voices.values()
         ]
 
-    # Dispatch functions: Routing functions to EITHER play sound on audio module OR on local device
+    # Dispatch functions: 
+    # Routing functions to EITHER play sound on audio module OR on local device.
     def _dispatch_voice_on(self, voice_id: str) -> None:
         voice = self.synth_state.active_voices.get(voice_id)
         if voice is None:
@@ -1557,7 +1512,7 @@ class SynthApp(ctk.CTk):
             self._refresh_display()
             return
 
-        # If local audio is active, play the voice on the local device
+        # If local audio is active AND Teensy is NOT connected, play the voice on the local device
         if self._local_audio_active():
             self._play_local_voice(voice_id)
             self._refresh_display()
@@ -1572,7 +1527,6 @@ class SynthApp(ctk.CTk):
         )
         self._refresh_display()
 
-    # Function to dispatch a note off (single voice)
     def _dispatch_voice_off(self, voice_id: str) -> None:
         if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
@@ -1598,16 +1552,13 @@ class SynthApp(ctk.CTk):
                 self._log(f"Note-Off failed: {exc}")
             return
 
-        # If Teensy is not connected AND local audio play is enabled, mute sound on local device
         if self.audio_engine.is_available and self.local_audio_var.get():
             self.audio_engine.note_off(voice_id)
             self.synth_state.last_packet = f"local:note-off:{voice_id}"
             self._log(f"Note-Off local: {voice_id}")
-        # Else only display the action that would have been taken
         else:
             self._log(f"Note-Off (only display): {voice_id}")
 
-    # Function to mute all sounds, i.e. when the button 'Stop' is pressed
     def _dispatch_all_notes_off(self) -> None:
         if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
@@ -1632,7 +1583,6 @@ class SynthApp(ctk.CTk):
         else:
             self._log("All-Notes-Off (display only)")
 
-    # Function to change sound when sound is already playing
     def _dispatch_param_update(self, quiet: bool = False) -> None:
         if not self.synth_state.is_playing:
             return
@@ -1705,7 +1655,6 @@ class SynthApp(ctk.CTk):
         self._refresh_display()
         self._dispatch_voice_on(voice_id)
 
-    # Function to retune a held voice without retriggering the envelope
     def _retune_voice(self, voice_id: str, frequency_hz: float) -> None:
         modulator = self._modulator_for_carrier(frequency_hz)
         if not self.synth_state.retune(voice_id, frequency_hz, modulator):
@@ -1713,7 +1662,7 @@ class SynthApp(ctk.CTk):
             return
         self._dispatch_param_update(quiet=True)
 
-    # Function to play a Conlang utterance
+    # Play a conlang utterance
     def speak(self, lexeme_ids: list[str]) -> None:
         try:
             events = compile_utterance(lexeme_ids)
@@ -1726,7 +1675,6 @@ class SynthApp(ctk.CTk):
         self._phrase_player.play(events)
         self._log(f"Conlang speak: {label}")
 
-    # Function to handle the Conlang play event
     def _on_conlang_play(self) -> None:
         label = self.conlang_utterance_var.get()
         utterance_id = next(
@@ -1739,38 +1687,32 @@ class SynthApp(ctk.CTk):
         utterance = get_utterance(utterance_id)
         self.speak(list(utterance.lexeme_ids))
 
-    # Wrapper function to schedule a phrase event
     def _schedule_phrase_event(self, delay_ms: int, callback) -> object:
         return self.after(max(0, int(delay_ms)), callback)
 
-    # Wrapper function to cancel a phrase event
     def _cancel_phrase_event(self, token: object) -> None:
         self.after_cancel(token)
 
-    # Wrapper function to stop a phrase event
     def _stop_phrase(self, release: bool = True) -> None:
         self._phrase_player.stop()
         if release:
             self._note_off(CONLANG_VOICE_ID)
 
-    # Function to handle the phrase finished event
     def _on_phrase_finished(self) -> None:
         self.conlang_status_label.configure(text="Speaking: —")
         self._log("Conlang phrase finished")
 
-    # Function to mute sound on local device
-    # This function is called when a note is released on the PC's keyboard
+    # Mute sound on local device
+    # e.g. Called when a note is released on the PC's keyboard
     def _note_off(self, voice_id: str) -> None:
         if not self.synth_state.note_off(voice_id):
             return
         self._dispatch_voice_off(voice_id)
         self._refresh_display()
 
-    # Function to send the current state to the audio module
     def _send_current_state(self) -> None:
         self._dispatch_param_update()
 
-    # Function to handle the note pressed event
     def _on_note_pressed(self, frequency_hz: float) -> None:
         # Legacy helper: treat as anonymous button note by frequency
         note_name = next(
@@ -1783,7 +1725,6 @@ class SynthApp(ctk.CTk):
         )
         self._note_on(note_name, frequency_hz)
 
-    # Function to handle the stop event
     def _on_stop(self) -> None:
         self._stop_phrase(release=False)
         self._pressed_keys.clear()
@@ -1794,7 +1735,6 @@ class SynthApp(ctk.CTk):
         self.conlang_status_label.configure(text="Speaking: —")
         self._refresh_display()
 
-    # Function to handle the modulator changed event
     def _on_modulator_changed(self, value: float) -> None:
         self.synth_state.modulator_hz = clamp_modulator_hz(value)
         self._mark_custom_preset()
@@ -1804,7 +1744,6 @@ class SynthApp(ctk.CTk):
             self._recompute_all_voice_modulators()
             self._dispatch_param_update()
 
-    # Function to handle the volume changed event
     def _on_volume_changed(self, value: float) -> None:
         self.synth_state.volume_pct = clamp_volume_pct(value)
         self._mark_custom_preset()
@@ -1813,7 +1752,6 @@ class SynthApp(ctk.CTk):
         if self.synth_state.is_playing:
             self._dispatch_param_update()
 
-    # Function to handle the mod depth changed event
     def _on_mod_depth_changed(self, value: float) -> None:
         self.synth_state.mod_depth_pct = clamp_mod_depth_pct(value)
         self._mark_custom_preset()
@@ -1822,7 +1760,6 @@ class SynthApp(ctk.CTk):
         if self.synth_state.is_playing:
             self._dispatch_param_update()
 
-    # Sends the global LFO + filter state to the Teensy (if connected)
     def _send_lfo(self) -> None:
         if self.serial_client.is_connected:
             try:
@@ -1842,7 +1779,6 @@ class SynthApp(ctk.CTk):
                 self._log(f"LFO send error: {exc}")
         self._refresh_display()
 
-    # Function to upload the current LFO cycle table (W chunks), not on every rate/depth slider move
     def _send_lfo_table(self) -> None:
         if not self.serial_client.is_connected:
             return
@@ -1857,55 +1793,46 @@ class SynthApp(ctk.CTk):
             self.status_label.configure(text=f"Status: Send error ({exc})")
             self._log(f"LFO table send error: {exc}")
 
-    # Function to schedule the LFO table send
     def _schedule_lfo_table_send(self, delay_ms: int = 80) -> None:
         if self._lfo_table_send_after is not None:
             self.after_cancel(self._lfo_table_send_after)
         self._lfo_table_send_after = self.after(delay_ms, self._flush_lfo_table_send)
 
-    # Function to flush the LFO table send
     def _flush_lfo_table_send(self) -> None:
         self._lfo_table_send_after = None
         self._send_lfo_table()
 
-    # Function to cancel the LFO table send
     def _cancel_lfo_table_send(self) -> None:
         if self._lfo_table_send_after is not None:
             self.after_cancel(self._lfo_table_send_after)
             self._lfo_table_send_after = None
 
-    # Function to handle the LFO rate changed event
     def _on_lfo_rate_changed(self, value: float) -> None:
         self.synth_state.lfo_rate_hz = clamp_lfo_rate(value)
         self._save_config()
         self._send_lfo()
 
-    # Function to handle the LFO depth changed event
     def _on_lfo_depth_changed(self, value: float) -> None:
         self.synth_state.lfo_depth_pct = clamp_lfo_depth_pct(value)
         self._save_config()
         self._send_lfo()
 
-    # Function to handle the filter cutoff changed event
     def _on_filter_cutoff_changed(self, value: float) -> None:
         self.synth_state.filter_cutoff_hz = clamp_filter_cutoff(value)
         self._save_config()
         self._send_lfo()
 
-    # Function to handle the filter resonance changed event
     def _on_filter_resonance_changed(self, value: float) -> None:
         self.synth_state.filter_resonance = clamp_filter_q(value)
         self._save_config()
         self._send_lfo()
 
-    # Function to handle the LFO preset changed event (i.e. S&H re-rolls on every click)
     def _on_lfo_preset_clicked(self, preset: str) -> None:
         self.synth_state.set_lfo_preset(preset)
         self._sync_lfo_waveform_ui()
         self._save_config()
         self._send_lfo_table()
 
-    # Function to handle the LFO interpolation changed event
     def _on_lfo_interp_changed(self, value: str) -> None:
         if self._lfo_ui_syncing:
             return
@@ -1915,7 +1842,6 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self._send_lfo_table()
 
-    # Function to synchronize the LFO waveform UI with the synth state
     def _sync_lfo_waveform_ui(self) -> None:
         if not hasattr(self, "lfo_canvas"):
             return
@@ -1930,13 +1856,13 @@ class SynthApp(ctk.CTk):
         self._draw_lfo_canvas()
         self._lfo_ui_syncing = False
 
-    # Function which returns the width, height, and padding of the LFO canvas
+    # Return the width, height, and padding of the LFO canvas
     def _lfo_canvas_metrics(self) -> tuple[int, int, int, int]:
         width = max(self.lfo_canvas.winfo_width(), 2)
         height = max(self.lfo_canvas.winfo_height(), 2)
         return width, height, 12, 10
 
-    # Function which converts sample index and value to x, y coordinates in canvas
+    # Convert sample index and value to x, y coordinates in canvas
     def _lfo_canvas_xy(self, sample_index: float, value: float) -> tuple[float, float]:
         width, height, pad_x, pad_y = self._lfo_canvas_metrics()
         inner_w = max(1, width - 2 * pad_x)
@@ -1945,14 +1871,13 @@ class SynthApp(ctk.CTk):
         y = pad_y + (1.0 - (value + 1.0) / 2.0) * inner_h
         return x, y
 
-    # Function which converts y coordinate in canvas to value (-1.0 to 1.0)
+    # Convert y coordinate in canvas to value (-1.0 to 1.0)
     def _lfo_canvas_y_to_value(self, y: float) -> float:
         _width, height, _pad_x, pad_y = self._lfo_canvas_metrics()
         inner_h = max(1, height - 2 * pad_y)
         value = 1.0 - 2.0 * (y - pad_y) / inner_h
         return max(-1.0, min(1.0, value))
 
-    # Function which draws the LFO canvas
     def _draw_lfo_canvas(self) -> None:
         if not hasattr(self, "lfo_canvas"):
             return
@@ -1988,11 +1913,9 @@ class SynthApp(ctk.CTk):
                 width=1,
             )
 
-    # Function to handle the LFO canvas configure event
     def _on_lfo_canvas_configure(self, _event) -> None:
         self._draw_lfo_canvas()
 
-    # Function to handle the LFO canvas hit event
     def _lfo_hit_handle(self, x: float, y: float) -> int | None:
         best_index: int | None = None
         best_dist = 14.0 ** 2
@@ -2004,7 +1927,6 @@ class SynthApp(ctk.CTk):
                 best_index = i
         return best_index
 
-    # Function to apply the LFO point drag
     def _apply_lfo_point_drag(self, y: float) -> None:
         if self._lfo_drag_index is None:
             return
@@ -2015,19 +1937,16 @@ class SynthApp(ctk.CTk):
         self._sync_lfo_waveform_ui()
         self._schedule_lfo_table_send()
 
-    # Function to handle the LFO canvas press event
     def _on_lfo_canvas_press(self, event) -> None:
         self._lfo_drag_index = self._lfo_hit_handle(event.x, event.y)
         if self._lfo_drag_index is not None:
             self._apply_lfo_point_drag(event.y)
 
-    # Function to handle the LFO canvas motion event
     def _on_lfo_canvas_motion(self, event) -> None:
         if self._lfo_drag_index is None:
             return
         self._apply_lfo_point_drag(event.y)
 
-    # Function to handle the LFO canvas release event
     def _on_lfo_canvas_release(self, _event) -> None:
         if self._lfo_drag_index is None:
             return
@@ -2036,13 +1955,11 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self._send_lfo_table()
 
-    # Function to handle the auto reconnect changed event
     def _on_auto_reconnect_changed(self) -> None:
         self._save_config()
         state = "enabled" if self.auto_reconnect_var.get() else "disabled"
         self._log(f"Auto-Reconnect {state}")
 
-    # Function to handle the connect event
     def _on_connect(self) -> None:
         port = self.port_var.get()
         if not port or port == "No port found":
@@ -2079,7 +1996,6 @@ class SynthApp(ctk.CTk):
         self._send_lfo()
         self._refresh_display()
 
-    # Function to handle the connect error event
     def _handle_connect_error(self, message: str) -> None:
         self._connect_in_progress = False
         self.synth_state.connected = False
@@ -2090,7 +2006,6 @@ class SynthApp(ctk.CTk):
         self._log(f"Connection error: {message}")
         self._refresh_display()
 
-    # Function to handle the disconnect event
     def _on_disconnect(self) -> None:
         port = self.synth_state.port or self.port_var.get()
         if self.synth_state.is_playing:
@@ -2105,7 +2020,6 @@ class SynthApp(ctk.CTk):
         self._log(f"Disconnected from {port}")
         self._refresh_display()
 
-    # Function to handle the window close event
     def _on_close(self) -> None:
         self._on_stop()
         self.unbind_all("<KeyPress>")
@@ -2117,7 +2031,9 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self.destroy()
 
-# Entry point function
+# Entry point of customTkinter app
 def run_app() -> None:
+    # Create main window of GUI
     app = SynthApp()
+    # Keep window opened 
     app.mainloop()
