@@ -1,16 +1,23 @@
-""" Contains GUI building and input handling functionalities.
+"""Builds GUI and handles input.
 
-Hardware Dependencies: 
-- (optional): Teensy 4.1 connected via USB + MAX98357A + Visaton FRWS 5 4 Ohm 
+This script provides the main components to either control the audio module or just play around with
+sound creation on the local device (when not connected to the audio module).
+It translates user inputs into events which are dispatched to the hardware communication layers.
+
+Hardware Dependencies:
+- (optional): Teensy 4.1 connected via USB + MAX98357A + Visaton FRWS 5 (4 Ohm)
+    IMPORTANT: Make sure to use seperate power sources:
+        - 5V USB for the Teensy
+        - Lipo 1S for MAX98357A + Visaton FRWS 5, connected via the charging module.
 - (optional): MIDI Keyboard connected via USB
 """
 
 from datetime import datetime
 from tkinter import Canvas, Entry, Text
 
-import customtkinter as ctk # Python UI library based on tkinter (standard Python GUI toolkit)
-
+import customtkinter as ctk  # Python UI library based on tkinter (standard Python GUI toolkit)
 from audio_engine import LocalAudioEngine
+from config_store import load_config, save_config
 from conlang_lexicon import (
     LEXEME_ORDER,
     LEXEMES,
@@ -19,8 +26,7 @@ from conlang_lexicon import (
     get_utterance,
     meanings_label,
 )
-from config_store import AppConfig, load_config, save_config
-from phrase_player import CONLANG_VOICE_ID, PhrasePlayer, compile_utterance
+from fm_utils import compute_modulator_hz
 from lfo_waveform import (
     LFO_PRESET_LABELS,
     LFO_PRESET_ORDER,
@@ -30,7 +36,7 @@ from lfo_waveform import (
     point_indices,
     table_to_int16,
 )
-
+from midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
 from safety_limits import (
     DEFAULT_VOLUME_PCT,
     FILTER_MAX_CUTOFF_HZ,
@@ -56,12 +62,17 @@ from safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
-from midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
 from serial_client import SerialClient, WatchdogCallbacks, list_com_ports
+from setup_store import (
+    SynthSetup,
+    export_user_spec,
+    list_setups,
+    load_setup,
+    save_setup,
+)
 from synth_mode_presets import FM_PRESETS, apply_preset
-from setup_store import SynthSetup, export_hiwi_spec, list_setups, load_setup, save_setup
-from fm_utils import compute_modulator_hz
-from synth_state import PC_KEYBOARD_MAPPING, NOTE_MAPPING, SynthState
+from synth_state import NOTE_MAPPING, PC_KEYBOARD_MAPPING, SynthState
+from utterance_player import CONLANG_VOICE_ID, UtterancePlayer, compile_utterance
 from waveforms import (
     WAVETABLE_CARRIER_WAVEFORM,
     carrier_waveform_from_label,
@@ -70,40 +81,27 @@ from waveforms import (
     is_wavetable_carrier,
 )
 
+
 class SynthApp(ctk.CTk):
-    """Main class of customtkinter module to build custom GUI. 
+    """Main class of customtkinter module to build GUI.
 
-    Contains all GUI functionalities from building up UI elements (text, input-fields, buttons)
-    to handling input. 
+    Builds the GUI and translates user inputs (sliders, buttons, PC keyboard)
+    into control events for the audio engine and the serial hardware client.
 
-    Args: 
+    Args:
         title (str): Title of the window.
         geometry (str): Width and height of the window in pixels.
         minsize (tuple[int, int]): Minimum width and height of the window in pixels.
         config (AppConfig): Configuration object.
-
         key_freqs (dict[str, float]): Frequencies mapped to the PC keyboard keys ('a', 's', 'd', 'f', 'g', 'h', 'j', 'k').
-        
         synth_state (SynthState): Synth state object (see synth_state.py).
         serial_client (SerialClient): Serial client object (see serial_client.py).
         midi_handler (MidiInputHandler): Midi input handler object (see midi_input.py).
         audio_engine (LocalAudioEngine): Local audio engine object (see audio_engine.py).
-        _connect_in_progress (bool): Flag to indicate if a connection is in progress.
-        _midi_connect_in_progress (bool): Flag to indicate if a MIDI connection is in progress.
-        _pressed_keys (set[str]): Set of pressed keys.
-        _note_buttons (dict[str, ctk.CTkButton]): Dictionary of note buttons.
-        _key_freq_entries (dict[str, ctk.CTkEntry]): Dictionary of key frequency entries.
-        _note_button_default_color (str | tuple[str, str] | None): Default color of the note buttons.
-        _lfo_drag_index (int | None): Index of the LFO drag handle.
-        _lfo_table_send_after (object | None): Timer object for sending the LFO table.
-        _lfo_ui_syncing (bool): Flag to indicate if the LFO UI is syncing.
-        _lfo_preset_buttons (dict[str, ctk.CTkButton]): Dictionary of L preset buttons.
-        _phrase_player (PhrasePlayer): Phrase player object (see phrase_player.py).
     """
 
     def __init__(self) -> None:
-        """ Creates GUI window initially.
-        """
+        """Creates GUI window initially."""
 
         super().__init__()
 
@@ -150,13 +148,13 @@ class SynthApp(ctk.CTk):
         self._lfo_table_send_after: object | None = None
         self._lfo_ui_syncing = False
         self._lfo_preset_buttons: dict[str, ctk.CTkButton] = {}
-        self._phrase_player = PhrasePlayer(
-            schedule=self._schedule_phrase_event,
-            cancel=self._cancel_phrase_event,
+        self._utterance_player = UtterancePlayer(
+            schedule=self._schedule_utterance_event,
+            cancel=self._cancel_utterance_event,
             on_note_on=lambda freq: self._note_on(CONLANG_VOICE_ID, freq),
             on_retune=lambda freq: self._retune_voice(CONLANG_VOICE_ID, freq),
             on_note_off=lambda: self._note_off(CONLANG_VOICE_ID),
-            on_finished=self._on_phrase_finished,
+            on_finished=self._on_utterance_finished,
         )
 
         self._build_ui()
@@ -366,7 +364,9 @@ class SynthApp(ctk.CTk):
         keyboard_frame.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="ew")
 
         # Creating buttons for each key and frequency
-        for index, (key, frequency_hz) in enumerate(self.synth_state.key_frequencies.items()):
+        for index, (key, frequency_hz) in enumerate(
+            self.synth_state.key_frequencies.items()
+        ):
             key_label = key.upper()
             button = ctk.CTkButton(
                 keyboard_frame,
@@ -386,7 +386,9 @@ class SynthApp(ctk.CTk):
             entry.insert(0, f"{frequency_hz:.2f}")
             entry.grid(row=1, column=index, padx=4, pady=(0, 4))
             entry.bind("<Return>", lambda _event, k=key: self._commit_key_frequency(k))
-            entry.bind("<FocusOut>", lambda _event, k=key: self._commit_key_frequency(k))
+            entry.bind(
+                "<FocusOut>", lambda _event, k=key: self._commit_key_frequency(k)
+            )
             self._key_freq_entries[key] = entry
 
         key_count = len(self.synth_state.key_frequencies)
@@ -397,7 +399,14 @@ class SynthApp(ctk.CTk):
             fg_color="gray30",
             hover_color="gray40",
             command=self._reset_key_frequencies,
-        ).grid(row=2, column=0, columnspan=max(key_count, 1), padx=4, pady=(4, 0), sticky="w")
+        ).grid(
+            row=2,
+            column=0,
+            columnspan=max(key_count, 1),
+            padx=4,
+            pady=(4, 0),
+            sticky="w",
+        )
 
         ctk.CTkLabel(
             controls_frame,
@@ -415,12 +424,16 @@ class SynthApp(ctk.CTk):
         sound_header.grid(row=0, column=0, padx=12, pady=(12, 8), sticky="ew")
         sound_header.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(sound_header, text="Sound Synthesis", font=ctk.CTkFont(size=15, weight="bold")).grid(
-            row=0, column=0, sticky="w"
-        )
+        ctk.CTkLabel(
+            sound_header,
+            text="Sound Synthesis",
+            font=ctk.CTkFont(size=15, weight="bold"),
+        ).grid(row=0, column=0, sticky="w")
 
         self.preset_buttons_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.preset_buttons_frame.grid(row=2, column=0, padx=12, pady=(0, 4), sticky="ew")
+        self.preset_buttons_frame.grid(
+            row=2, column=0, padx=12, pady=(0, 4), sticky="ew"
+        )
 
         self.fm_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
         self.fm_panel_frame.grid(row=5, column=0, padx=12, pady=(0, 8), sticky="ew")
@@ -440,7 +453,10 @@ class SynthApp(ctk.CTk):
         volume_controls.grid(row=8, column=0, padx=12, pady=(0, 8), sticky="ew")
         volume_controls.grid_columnconfigure(0, weight=1)
         self.volume_slider = ctk.CTkSlider(
-            volume_controls, from_=0, to=MAX_VOLUME_PCT, number_of_steps=MAX_VOLUME_PCT,
+            volume_controls,
+            from_=0,
+            to=MAX_VOLUME_PCT,
+            number_of_steps=MAX_VOLUME_PCT,
         )
         self.volume_slider.set(self.synth_state.volume_pct)
         self.volume_slider.grid(row=0, column=0, sticky="ew")
@@ -459,35 +475,48 @@ class SynthApp(ctk.CTk):
         setup_frame = ctk.CTkFrame(controls_frame)
         setup_frame.grid(row=5, column=0, pady=(0, 8), sticky="ew")
         setup_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(setup_frame, text="Setups", font=ctk.CTkFont(size=15, weight="bold")).grid(
-            row=0, column=0, columnspan=3, padx=12, pady=(12, 6), sticky="w"
+        ctk.CTkLabel(
+            setup_frame, text="Setups", font=ctk.CTkFont(size=15, weight="bold")
+        ).grid(row=0, column=0, columnspan=3, padx=12, pady=(12, 6), sticky="w")
+        ctk.CTkLabel(setup_frame, text="Load").grid(
+            row=1, column=0, padx=12, pady=6, sticky="w"
         )
-        ctk.CTkLabel(setup_frame, text="Load").grid(row=1, column=0, padx=12, pady=6, sticky="w")
         self.setup_load_var = ctk.StringVar(value="")
-        self.setup_load_menu = ctk.CTkOptionMenu(setup_frame, variable=self.setup_load_var, values=["No setups"])
+        self.setup_load_menu = ctk.CTkOptionMenu(
+            setup_frame, variable=self.setup_load_var, values=["No setups"]
+        )
         self.setup_load_menu.grid(row=1, column=1, padx=6, pady=6, sticky="ew")
-        ctk.CTkButton(setup_frame, text="Load", width=90, command=self._load_setup).grid(
-            row=1, column=2, padx=(6, 12), pady=6
+        ctk.CTkButton(
+            setup_frame, text="Load", width=90, command=self._load_setup
+        ).grid(row=1, column=2, padx=(6, 12), pady=6)
+        ctk.CTkLabel(setup_frame, text="Name").grid(
+            row=2, column=0, padx=12, pady=6, sticky="w"
         )
-        ctk.CTkLabel(setup_frame, text="Name").grid(row=2, column=0, padx=12, pady=6, sticky="w")
         self.setup_name_var = ctk.StringVar(value=self.config.last_setup_name)
-        self.setup_name_entry = ctk.CTkEntry(setup_frame, textvariable=self.setup_name_var, placeholder_text="Setup name")
+        self.setup_name_entry = ctk.CTkEntry(
+            setup_frame, textvariable=self.setup_name_var, placeholder_text="Setup name"
+        )
         self.setup_name_entry.grid(row=2, column=1, padx=6, pady=6, sticky="ew")
-        ctk.CTkButton(setup_frame, text="Save", width=90, command=self._save_setup).grid(
-            row=2, column=2, padx=(6, 12), pady=6
+        ctk.CTkButton(
+            setup_frame, text="Save", width=90, command=self._save_setup
+        ).grid(row=2, column=2, padx=(6, 12), pady=6)
+        ctk.CTkLabel(setup_frame, text="Notes").grid(
+            row=3, column=0, padx=12, pady=(6, 12), sticky="nw"
         )
-        ctk.CTkLabel(setup_frame, text="Notes").grid(row=3, column=0, padx=12, pady=(6, 12), sticky="nw")
-        self.setup_notes_entry = ctk.CTkEntry(setup_frame, placeholder_text="Optional notes")
+        self.setup_notes_entry = ctk.CTkEntry(
+            setup_frame, placeholder_text="Optional notes"
+        )
         self.setup_notes_entry.grid(row=3, column=1, padx=6, pady=(6, 12), sticky="ew")
-        ctk.CTkButton(setup_frame, text="Export spec", width=110, command=self._export_setup_spec).grid(
-            row=3, column=2, padx=(6, 12), pady=(6, 12)
-        )
+        ctk.CTkButton(
+            setup_frame, text="Export spec", width=110, command=self._export_setup_spec
+        ).grid(row=3, column=2, padx=(6, 12), pady=(6, 12))
         self._refresh_setup_list()
 
         ctk.CTkLabel(
             sound_frame,
             text=f"Safety limits: Volume max. {MAX_VOLUME_PCT} %",
-            text_color="gray60", anchor="w",
+            text_color="gray60",
+            anchor="w",
         ).grid(row=9, column=0, padx=12, pady=(0, 12), sticky="ew")
 
         log_frame = ctk.CTkFrame(self)
@@ -517,7 +546,9 @@ class SynthApp(ctk.CTk):
         play_row.grid(row=1, column=0, padx=12, pady=(0, 6), sticky="ew")
         play_row.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(play_row, text="Utterance").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        ctk.CTkLabel(play_row, text="Utterance").grid(
+            row=0, column=0, padx=(0, 8), sticky="w"
+        )
         utterance_labels = [UTTERANCES[uid].label for uid in UTTERANCE_ORDER]
         self.conlang_utterance_var = ctk.StringVar(value=utterance_labels[0])
         self.conlang_utterance_menu = ctk.CTkOptionMenu(
@@ -527,9 +558,9 @@ class SynthApp(ctk.CTk):
             width=180,
         )
         self.conlang_utterance_menu.grid(row=0, column=1, padx=(0, 8), sticky="w")
-        ctk.CTkButton(play_row, text="Play", width=80, command=self._on_conlang_play).grid(
-            row=0, column=2, padx=(0, 8)
-        )
+        ctk.CTkButton(
+            play_row, text="Play", width=80, command=self._on_conlang_play
+        ).grid(row=0, column=2, padx=(0, 8))
         ctk.CTkButton(
             play_row,
             text="Stop",
@@ -541,7 +572,9 @@ class SynthApp(ctk.CTk):
 
         lexeme_row = ctk.CTkFrame(conlang_frame, fg_color="transparent")
         lexeme_row.grid(row=2, column=0, padx=12, pady=(0, 6), sticky="ew")
-        ctk.CTkLabel(lexeme_row, text="Words").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        ctk.CTkLabel(lexeme_row, text="Words").grid(
+            row=0, column=0, padx=(0, 8), sticky="w"
+        )
         for index, lexeme_id in enumerate(LEXEME_ORDER):
             lexeme = LEXEMES[lexeme_id]
             ctk.CTkButton(
@@ -554,7 +587,9 @@ class SynthApp(ctk.CTk):
         self.conlang_status_label = ctk.CTkLabel(
             conlang_frame, text="Speaking: —", anchor="w"
         )
-        self.conlang_status_label.grid(row=3, column=0, padx=12, pady=(0, 4), sticky="w")
+        self.conlang_status_label.grid(
+            row=3, column=0, padx=12, pady=(0, 4), sticky="w"
+        )
         ctk.CTkLabel(
             conlang_frame,
             text="Timbre: Sine or Triangle with little FM fits the conlang character best.",
@@ -567,7 +602,9 @@ class SynthApp(ctk.CTk):
         fm.grid_columnconfigure(0, weight=1)
 
         carrier_waveform_row = ctk.CTkFrame(fm, fg_color="transparent")
-        carrier_waveform_row.grid(row=0, column=0, columnspan=2, pady=(0, 6), sticky="w")
+        carrier_waveform_row.grid(
+            row=0, column=0, columnspan=2, pady=(0, 6), sticky="w"
+        )
         ctk.CTkLabel(carrier_waveform_row, text="Carrier waveform").grid(
             row=0, column=0, padx=(0, 8), sticky="w"
         )
@@ -593,7 +630,9 @@ class SynthApp(ctk.CTk):
 
         modulator_mode_row = ctk.CTkFrame(fm, fg_color="transparent")
         modulator_mode_row.grid(row=1, column=0, columnspan=2, sticky="w")
-        ctk.CTkLabel(modulator_mode_row, text="Modulator mode").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        ctk.CTkLabel(modulator_mode_row, text="Modulator mode").grid(
+            row=0, column=0, padx=(0, 8), sticky="w"
+        )
         self.modulator_mode_var = ctk.StringVar(
             value="Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz"
         )
@@ -640,20 +679,38 @@ class SynthApp(ctk.CTk):
         )
         self.mod_depth_slider.set(self.synth_state.mod_depth_pct)
         self.mod_depth_entry = ctk.CTkEntry(fm, width=70)
-        self._add_labeled_slider(fm, 1, self.modulator_label, self.modulator_slider, self.modulator_entry)
-        self._add_labeled_slider(fm, 2, self.ratio_label, self.ratio_slider, self.ratio_entry)
-        self._add_labeled_slider(fm, 3, self.mod_depth_label, self.mod_depth_slider, self.mod_depth_entry)
-        self._wire_slider_entry(
-            self.modulator_slider, self.modulator_entry,
-            MIN_MODULATOR_HZ, MAX_MODULATOR_HZ, self._on_modulator_changed, decimals=1,
+        self._add_labeled_slider(
+            fm, 1, self.modulator_label, self.modulator_slider, self.modulator_entry
+        )
+        self._add_labeled_slider(
+            fm, 2, self.ratio_label, self.ratio_slider, self.ratio_entry
+        )
+        self._add_labeled_slider(
+            fm, 3, self.mod_depth_label, self.mod_depth_slider, self.mod_depth_entry
         )
         self._wire_slider_entry(
-            self.ratio_slider, self.ratio_entry,
-            MIN_MODULATOR_RATIO, MAX_MODULATOR_RATIO, self._on_ratio_changed, decimals=2,
+            self.modulator_slider,
+            self.modulator_entry,
+            MIN_MODULATOR_HZ,
+            MAX_MODULATOR_HZ,
+            self._on_modulator_changed,
+            decimals=1,
         )
         self._wire_slider_entry(
-            self.mod_depth_slider, self.mod_depth_entry,
-            0, MAX_MOD_DEPTH_PCT, self._on_mod_depth_changed, decimals=0,
+            self.ratio_slider,
+            self.ratio_entry,
+            MIN_MODULATOR_RATIO,
+            MAX_MODULATOR_RATIO,
+            self._on_ratio_changed,
+            decimals=2,
+        )
+        self._wire_slider_entry(
+            self.mod_depth_slider,
+            self.mod_depth_entry,
+            0,
+            MAX_MOD_DEPTH_PCT,
+            self._on_mod_depth_changed,
+            decimals=0,
         )
         self._set_modulator_mode_ui()
 
@@ -670,7 +727,9 @@ class SynthApp(ctk.CTk):
         shape_row = ctk.CTkFrame(lfo, fg_color="transparent")
         shape_row.grid(row=1, column=0, columnspan=2, pady=(0, 6), sticky="ew")
         shape_row.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(shape_row, text="LFO shape").grid(row=0, column=0, padx=(0, 8), sticky="w")
+        ctk.CTkLabel(shape_row, text="LFO shape").grid(
+            row=0, column=0, padx=(0, 8), sticky="w"
+        )
 
         preset_row = ctk.CTkFrame(shape_row, fg_color="transparent")
         preset_row.grid(row=0, column=1, sticky="w")
@@ -685,7 +744,9 @@ class SynthApp(ctk.CTk):
             button.grid(row=0, column=column, padx=(0, 6), sticky="w")
             self._lfo_preset_buttons[name] = button
 
-        self.lfo_interp_var = ctk.StringVar(value=lfo_interp_label(self.synth_state.lfo_interp))
+        self.lfo_interp_var = ctk.StringVar(
+            value=lfo_interp_label(self.synth_state.lfo_interp)
+        )
         self.lfo_interp_switch = ctk.CTkSegmentedButton(
             shape_row,
             values=["Linear", "Step"],
@@ -716,7 +777,9 @@ class SynthApp(ctk.CTk):
         self.lfo_rate_label = ctk.CTkLabel(
             lfo, text=f"LFO rate: {self.synth_state.lfo_rate_hz:.2f} Hz"
         )
-        self.lfo_rate_slider = ctk.CTkSlider(lfo, from_=LFO_MIN_RATE_HZ, to=LFO_MAX_RATE_HZ)
+        self.lfo_rate_slider = ctk.CTkSlider(
+            lfo, from_=LFO_MIN_RATE_HZ, to=LFO_MAX_RATE_HZ
+        )
         self.lfo_rate_slider.set(self.synth_state.lfo_rate_hz)
         self.lfo_rate_entry = ctk.CTkEntry(lfo, width=70)
 
@@ -750,40 +813,74 @@ class SynthApp(ctk.CTk):
         self.filter_resonance_slider.set(self.synth_state.filter_resonance)
         self.filter_resonance_entry = ctk.CTkEntry(lfo, width=70)
 
-        self._add_labeled_slider(lfo, 1, self.lfo_rate_label, self.lfo_rate_slider, self.lfo_rate_entry)
-        self._add_labeled_slider(lfo, 2, self.lfo_depth_label, self.lfo_depth_slider, self.lfo_depth_entry)
-        self._add_labeled_slider(lfo, 3, self.filter_cutoff_label, self.filter_cutoff_slider, self.filter_cutoff_entry)
-        self._add_labeled_slider(lfo, 4, self.filter_resonance_label, self.filter_resonance_slider, self.filter_resonance_entry)
+        self._add_labeled_slider(
+            lfo, 1, self.lfo_rate_label, self.lfo_rate_slider, self.lfo_rate_entry
+        )
+        self._add_labeled_slider(
+            lfo, 2, self.lfo_depth_label, self.lfo_depth_slider, self.lfo_depth_entry
+        )
+        self._add_labeled_slider(
+            lfo,
+            3,
+            self.filter_cutoff_label,
+            self.filter_cutoff_slider,
+            self.filter_cutoff_entry,
+        )
+        self._add_labeled_slider(
+            lfo,
+            4,
+            self.filter_resonance_label,
+            self.filter_resonance_slider,
+            self.filter_resonance_entry,
+        )
 
         self._wire_slider_entry(
-            self.lfo_rate_slider, self.lfo_rate_entry,
-            LFO_MIN_RATE_HZ, LFO_MAX_RATE_HZ, self._on_lfo_rate_changed, decimals=2,
+            self.lfo_rate_slider,
+            self.lfo_rate_entry,
+            LFO_MIN_RATE_HZ,
+            LFO_MAX_RATE_HZ,
+            self._on_lfo_rate_changed,
+            decimals=2,
         )
         self._wire_slider_entry(
-            self.lfo_depth_slider, self.lfo_depth_entry,
-            0, LFO_MAX_DEPTH_PCT, self._on_lfo_depth_changed, decimals=0,
+            self.lfo_depth_slider,
+            self.lfo_depth_entry,
+            0,
+            LFO_MAX_DEPTH_PCT,
+            self._on_lfo_depth_changed,
+            decimals=0,
         )
         self._wire_slider_entry(
-            self.filter_cutoff_slider, self.filter_cutoff_entry,
-            FILTER_MIN_CUTOFF_HZ, FILTER_MAX_CUTOFF_HZ, self._on_filter_cutoff_changed, decimals=0,
+            self.filter_cutoff_slider,
+            self.filter_cutoff_entry,
+            FILTER_MIN_CUTOFF_HZ,
+            FILTER_MAX_CUTOFF_HZ,
+            self._on_filter_cutoff_changed,
+            decimals=0,
         )
         self._wire_slider_entry(
-            self.filter_resonance_slider, self.filter_resonance_entry,
-            FILTER_MIN_Q, FILTER_MAX_Q, self._on_filter_resonance_changed, decimals=2,
+            self.filter_resonance_slider,
+            self.filter_resonance_entry,
+            FILTER_MIN_Q,
+            FILTER_MAX_Q,
+            self._on_filter_resonance_changed,
+            decimals=2,
         )
 
     def _add_labeled_slider(
-            self,
-            parent: ctk.CTkFrame,
-            row: int,
-            label: ctk.CTkLabel,
-            slider: ctk.CTkSlider,
-            entry: ctk.CTkEntry | None = None,
-        ) -> None:
+        self,
+        parent: ctk.CTkFrame,
+        row: int,
+        label: ctk.CTkLabel,
+        slider: ctk.CTkSlider,
+        entry: ctk.CTkEntry | None = None,
+    ) -> None:
 
         label_row = row * 2 + 1
         control_row = row * 2 + 2
-        label.grid(row=label_row, column=0, columnspan=2, padx=0, pady=(6, 2), sticky="w")
+        label.grid(
+            row=label_row, column=0, columnspan=2, padx=0, pady=(6, 2), sticky="w"
+        )
         parent.grid_columnconfigure(0, weight=1)
         slider.grid(row=control_row, column=0, padx=0, pady=(0, 4), sticky="ew")
         if entry is not None:
@@ -861,7 +958,9 @@ class SynthApp(ctk.CTk):
             self.preset_buttons_frame.grid()
             for index, preset_name in enumerate(FM_PRESETS):
                 ctk.CTkButton(
-                    self.preset_buttons_frame, text=preset_name, width=90,
+                    self.preset_buttons_frame,
+                    text=preset_name,
+                    width=90,
                     command=lambda name=preset_name: self._apply_preset(name),
                 ).grid(row=index // 3, column=index % 3, padx=3, pady=2, sticky="ew")
             for column in range(3):
@@ -877,10 +976,15 @@ class SynthApp(ctk.CTk):
         self.setup_load_var.set(preferred if preferred in setups else values[0])
 
     def _current_setup(self) -> SynthSetup:
-        name = self.setup_name_var.get().strip() or self.config.last_setup_name or "Untitled"
+        name = (
+            self.setup_name_var.get().strip()
+            or self.config.last_setup_name
+            or "Untitled"
+        )
         return SynthSetup(
             name=name,
-            params=self.synth_state.setup_params_dict(), notes=self.setup_notes_entry.get().strip(),
+            params=self.synth_state.setup_params_dict(),
+            notes=self.setup_notes_entry.get().strip(),
         )
 
     def _save_setup(self) -> None:
@@ -914,7 +1018,7 @@ class SynthApp(ctk.CTk):
 
     def _export_setup_spec(self) -> None:
         setup = self._current_setup()
-        path = export_hiwi_spec(setup)
+        path = export_user_spec(setup)
         self._log(f"Spec exported: {path.name}")
 
     def _create_value_block(
@@ -1096,9 +1200,13 @@ class SynthApp(ctk.CTk):
             self.midi_port_var.set(values[0])
 
     def _set_midi_controls(self, connected: bool) -> None:
-        connect_state = "disabled" if connected or self._midi_connect_in_progress else "normal"
+        connect_state = (
+            "disabled" if connected or self._midi_connect_in_progress else "normal"
+        )
         disconnect_state = "disabled" if not connected else "normal"
-        port_state = "disabled" if connected or self._midi_connect_in_progress else "normal"
+        port_state = (
+            "disabled" if connected or self._midi_connect_in_progress else "normal"
+        )
 
         self.midi_connect_button.configure(state=connect_state)
         self.midi_disconnect_button.configure(state=disconnect_state)
@@ -1118,7 +1226,9 @@ class SynthApp(ctk.CTk):
         self._log(f"MIDI: Connecting to {port}...")
 
         callbacks = MidiCallbacks(
-            on_note_on=lambda note, freq: self.after(0, self._on_midi_note_on, note, freq),
+            on_note_on=lambda note, freq: self.after(
+                0, self._on_midi_note_on, note, freq
+            ),
             on_note_off=lambda note: self.after(0, self._on_midi_note_off, note),
             on_connected=lambda: self.after(0, self._handle_midi_connected, port),
             on_disconnected=lambda: self.after(0, self._handle_midi_disconnected),
@@ -1241,7 +1351,9 @@ class SynthApp(ctk.CTk):
         self.filter_cutoff_slider.set(self.synth_state.filter_cutoff_hz)
         self.filter_resonance_slider.set(self.synth_state.filter_resonance)
         self._sync_lfo_waveform_ui()
-        self.modulator_mode_var.set("Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz")
+        self.modulator_mode_var.set(
+            "Ratio" if self.synth_state.modulator_mode == "ratio" else "Fix Hz"
+        )
         self._sync_carrier_waveform_ui()
         self._sync_param_entries()
         self._set_modulator_mode_ui()
@@ -1249,13 +1361,27 @@ class SynthApp(ctk.CTk):
 
     def _sync_param_entries(self) -> None:
         self._set_entry_text(self.volume_entry, float(self.synth_state.volume_pct), 0)
-        self._set_entry_text(self.modulator_entry, float(self.synth_state.modulator_hz), 1)
-        self._set_entry_text(self.ratio_entry, float(self.synth_state.modulator_ratio), 2)
-        self._set_entry_text(self.mod_depth_entry, float(self.synth_state.mod_depth_pct), 0)
-        self._set_entry_text(self.lfo_rate_entry, float(self.synth_state.lfo_rate_hz), 2)
-        self._set_entry_text(self.lfo_depth_entry, float(self.synth_state.lfo_depth_pct), 0)
-        self._set_entry_text(self.filter_cutoff_entry, float(self.synth_state.filter_cutoff_hz), 0)
-        self._set_entry_text(self.filter_resonance_entry, float(self.synth_state.filter_resonance), 2)
+        self._set_entry_text(
+            self.modulator_entry, float(self.synth_state.modulator_hz), 1
+        )
+        self._set_entry_text(
+            self.ratio_entry, float(self.synth_state.modulator_ratio), 2
+        )
+        self._set_entry_text(
+            self.mod_depth_entry, float(self.synth_state.mod_depth_pct), 0
+        )
+        self._set_entry_text(
+            self.lfo_rate_entry, float(self.synth_state.lfo_rate_hz), 2
+        )
+        self._set_entry_text(
+            self.lfo_depth_entry, float(self.synth_state.lfo_depth_pct), 0
+        )
+        self._set_entry_text(
+            self.filter_cutoff_entry, float(self.synth_state.filter_cutoff_hz), 0
+        )
+        self._set_entry_text(
+            self.filter_resonance_entry, float(self.synth_state.filter_resonance), 2
+        )
 
     # Shows the active carrier: Either one of the basic waveforms or the Teensy wavetable
     def _sync_carrier_waveform_ui(self) -> None:
@@ -1302,7 +1428,10 @@ class SynthApp(ctk.CTk):
 
     def _on_modulator_mode_changed(self, value: str) -> None:
         self.synth_state.modulator_mode = "ratio" if value == "Ratio" else "fixed"
-        if self.synth_state.modulator_mode == "ratio" and self.synth_state.carrier_hz is not None:
+        if (
+            self.synth_state.modulator_mode == "ratio"
+            and self.synth_state.carrier_hz is not None
+        ):
             self.synth_state.modulator_hz = compute_modulator_hz(
                 self.synth_state.carrier_hz,
                 "ratio",
@@ -1344,7 +1473,9 @@ class SynthApp(ctk.CTk):
             on_reconnect_attempt=lambda port: self.after(
                 0, self._log, f"Auto-Reconnect: trying {port}"
             ),
-            on_reconnected=lambda port: self.after(0, self._handle_auto_reconnected, port),
+            on_reconnected=lambda port: self.after(
+                0, self._handle_auto_reconnected, port
+            ),
             on_reconnect_failed=lambda message: self.after(
                 0, self._log, f"Auto-Reconnect failed: {message}"
             ),
@@ -1389,7 +1520,9 @@ class SynthApp(ctk.CTk):
             self.port_var.set(values[0])
 
     def _set_connection_controls(self, connected: bool) -> None:
-        connect_state = "disabled" if connected or self._connect_in_progress else "normal"
+        connect_state = (
+            "disabled" if connected or self._connect_in_progress else "normal"
+        )
         disconnect_state = "disabled" if not connected else "normal"
         port_state = "disabled" if connected or self._connect_in_progress else "normal"
 
@@ -1435,7 +1568,9 @@ class SynthApp(ctk.CTk):
         self._sync_param_entries()
 
         if self.synth_state.connected and self.synth_state.port:
-            self.status_label.configure(text=f"Status: Connected ({self.synth_state.port})")
+            self.status_label.configure(
+                text=f"Status: Connected ({self.synth_state.port})"
+            )
         elif self._connect_in_progress:
             self.status_label.configure(text="Status: Connecting...")
         else:
@@ -1463,7 +1598,7 @@ class SynthApp(ctk.CTk):
             for v in self.synth_state.active_voices.values()
         ]
 
-    # Dispatch functions: 
+    # Dispatch functions:
     # Routing functions to EITHER play sound on audio module OR on local device.
     def _dispatch_voice_on(self, voice_id: str) -> None:
         voice = self.synth_state.active_voices.get(voice_id)
@@ -1518,13 +1653,8 @@ class SynthApp(ctk.CTk):
             self._refresh_display()
             return
 
-        self.status_label.configure(
-            text="Status: Not connected – display only"
-        )
-        self._log(
-            f"Note {voice.carrier_hz:.2f} Hz "
-            "(no serial / local playback off)"
-        )
+        self.status_label.configure(text="Status: Not connected – display only")
+        self._log(f"Note {voice.carrier_hz:.2f} Hz (no serial / local playback off)")
         self._refresh_display()
 
     def _dispatch_voice_off(self, voice_id: str) -> None:
@@ -1639,14 +1769,11 @@ class SynthApp(ctk.CTk):
             voice.carrier_hz,
             params,
         )
-        packet = (
-            f"local:fm:{voice.voice_id}:"
-            f"{voice.carrier_hz:.2f}Hz"
-        )
+        packet = f"local:fm:{voice.voice_id}:{voice.carrier_hz:.2f}Hz"
         self.synth_state.last_packet = packet
         self._log(f"Played locally: {packet}")
 
-    # Initially initiate playing a sound 
+    # Initially initiate playing a sound
     def _note_on(self, voice_id: str, frequency_hz: float) -> None:
         modulator = self._modulator_for_carrier(frequency_hz)
         stolen = self.synth_state.note_on(voice_id, frequency_hz, modulator)
@@ -1670,9 +1797,9 @@ class SynthApp(ctk.CTk):
         except ValueError as exc:
             self._log(f"Conlang speak failed: {exc}")
             return
-        self._stop_phrase(release=True)
+        self._stop_utterance(release=True)
         self.conlang_status_label.configure(text=f"Speaking: {label}")
-        self._phrase_player.play(events)
+        self._utterance_player.play(events)
         self._log(f"Conlang speak: {label}")
 
     def _on_conlang_play(self) -> None:
@@ -1687,20 +1814,20 @@ class SynthApp(ctk.CTk):
         utterance = get_utterance(utterance_id)
         self.speak(list(utterance.lexeme_ids))
 
-    def _schedule_phrase_event(self, delay_ms: int, callback) -> object:
+    def _schedule_utterance_event(self, delay_ms: int, callback) -> object:
         return self.after(max(0, int(delay_ms)), callback)
 
-    def _cancel_phrase_event(self, token: object) -> None:
+    def _cancel_utterance_event(self, token: object) -> None:
         self.after_cancel(token)
 
-    def _stop_phrase(self, release: bool = True) -> None:
-        self._phrase_player.stop()
+    def _stop_utterance(self, release: bool = True) -> None:
+        self._utterance_player.stop()
         if release:
             self._note_off(CONLANG_VOICE_ID)
 
-    def _on_phrase_finished(self) -> None:
+    def _on_utterance_finished(self) -> None:
         self.conlang_status_label.configure(text="Speaking: —")
-        self._log("Conlang phrase finished")
+        self._log("Conlang utterance finished")
 
     # Mute sound on local device
     # e.g. Called when a note is released on the PC's keyboard
@@ -1726,7 +1853,7 @@ class SynthApp(ctk.CTk):
         self._note_on(note_name, frequency_hz)
 
     def _on_stop(self) -> None:
-        self._stop_phrase(release=False)
+        self._stop_utterance(release=False)
         self._pressed_keys.clear()
         for key in list(self._note_buttons):
             self._set_note_button_pressed(key, False)
@@ -1783,7 +1910,9 @@ class SynthApp(ctk.CTk):
         if not self.serial_client.is_connected:
             return
         try:
-            summary = self.serial_client.send_lfo_table(table_to_int16(self.synth_state.lfo_table))
+            summary = self.serial_client.send_lfo_table(
+                table_to_int16(self.synth_state.lfo_table)
+            )
             self.synth_state.last_packet = summary
             self._log(f"LFO table sent: {summary}")
         except Exception as exc:
@@ -1889,7 +2018,9 @@ class SynthApp(ctk.CTk):
 
         zero_left = self._lfo_canvas_xy(0, 0.0)
         zero_right = self._lfo_canvas_xy(LFO_WAVETABLE_SIZE, 0.0)
-        canvas.create_line(zero_left[0], zero_left[1], zero_right[0], zero_right[1], fill="#3a3a3a")
+        canvas.create_line(
+            zero_left[0], zero_left[1], zero_right[0], zero_right[1], fill="#3a3a3a"
+        )
 
         table = self.synth_state.lfo_table
         polyline: list[float] = []
@@ -1901,7 +2032,9 @@ class SynthApp(ctk.CTk):
         canvas.create_line(*polyline, fill="#3b8ed0", width=2)
 
         for i, sample_index in enumerate(point_indices()):
-            x, y = self._lfo_canvas_xy(int(sample_index), self.synth_state.lfo_points[i])
+            x, y = self._lfo_canvas_xy(
+                int(sample_index), self.synth_state.lfo_points[i]
+            )
             radius = 5
             canvas.create_oval(
                 x - radius,
@@ -1918,9 +2051,11 @@ class SynthApp(ctk.CTk):
 
     def _lfo_hit_handle(self, x: float, y: float) -> int | None:
         best_index: int | None = None
-        best_dist = 14.0 ** 2
+        best_dist = 14.0**2
         for i, sample_index in enumerate(point_indices()):
-            hx, hy = self._lfo_canvas_xy(int(sample_index), self.synth_state.lfo_points[i])
+            hx, hy = self._lfo_canvas_xy(
+                int(sample_index), self.synth_state.lfo_points[i]
+            )
             dist = (x - hx) ** 2 + (y - hy) ** 2
             if dist < best_dist:
                 best_dist = dist
@@ -2031,9 +2166,10 @@ class SynthApp(ctk.CTk):
         self._save_config()
         self.destroy()
 
+
 # Entry point of customTkinter app
 def run_app() -> None:
     # Create main window of GUI
     app = SynthApp()
-    # Keep window opened 
+    # Keep window opened
     app.mainloop()

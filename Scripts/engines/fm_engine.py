@@ -1,6 +1,4 @@
-"""
-Contains the FM engine class for polyphonic FM synthesis
-"""
+"""Provides engine functionality for FM synthesis."""
 
 from __future__ import annotations
 
@@ -29,7 +27,8 @@ from engines.base import (
     wrap_phase,
 )
 
-PURE_SINE_MOD_HZ_THRESHOLD = 1.0
+THRESHOLD_MOD_FM_OFF = 1.0
+
 
 # Data class for a FM voice
 @dataclass
@@ -42,6 +41,7 @@ class _FmVoice:
     mod_fade_active: bool = False
     carrier_phase: float = 0.0
     mod_phase: float = 0.0
+
 
 # Class for the FM engine
 class FmEngine:
@@ -76,16 +76,18 @@ class FmEngine:
         with self._lock:
             # Update the carrier waveform
             self._carrier_waveform = carrier_waveform
-            # Update the volume 
-            self._volume = min(FIRMWARE_MAX_AMPLITUDE, clamp_volume_pct(volume_pct) / 100.0)
+            # Update the volume
+            self._volume = min(
+                FIRMWARE_MAX_AMPLITUDE, clamp_volume_pct(volume_pct) / 100.0
+            )
             # Update the modulator depth
             self._mod_depth = min(
                 FIRMWARE_MAX_MOD_DEPTH, clamp_mod_depth_pct(mod_depth_pct) / 100.0
             )
             # Update the modulator frequency
             mod_hz = clamp_modulator_hz(modulator_hz)
-            # Check if the modulator frequency is less than the threshold for pure sine
-            use_pure = mod_hz < PURE_SINE_MOD_HZ_THRESHOLD
+            # Check if the modulator frequency is less than the threshold for FM off
+            fm_off = mod_hz < THRESHOLD_MOD_FM_OFF
 
             # Check if the voice is already playing
             if voice_id in self._voices:
@@ -113,10 +115,9 @@ class FmEngine:
                 # If the voice is starting, set the modulator fade to 0.0
                 voice.mod_fade = 0.0
                 # Update the modulator fade active
-                voice.mod_fade_active = not use_pure and MODULATOR_FADE_MS > 0.0
-                # If the modulator fade is not active and the modulator frequency is less than the threshold for pure sine, set the modulator fade to 1.0
-                if not voice.mod_fade_active and not use_pure:
-                    # Set the modulator fade to 1.0
+                voice.mod_fade_active = not fm_off and MODULATOR_FADE_MS > 0.0
+                # If the modulator fade is not active and fm_off is False, activate the modulator fade
+                if not voice.mod_fade_active and not fm_off:
                     voice.mod_fade = 1.0
             # Update the voice
             self._voices[voice_id] = voice
@@ -170,9 +171,9 @@ class FmEngine:
                     voice.carrier_hz = clamp_carrier_hz(carrier_hz)
                     voice.modulator_hz = clamp_modulator_hz(modulator_hz)
 
-    # Calculate audio samples and send it to the hardware 
+    # Calculate audio samples and send it to the hardware
     # process voices -> calculate sound samples out of them -> soft clip the samples -> output the samples to the sound card of the computer
-    def render(self, outdata, frames: int, np) -> None:  
+    def render(self, outdata, frames: int, np) -> None:
         with self._lock:
             volume = self._volume
             mod_depth = self._mod_depth
@@ -195,23 +196,27 @@ class FmEngine:
             for i in range(frames):
                 # Apply envelope attack and release
                 voice.env.advance(attack_incr, release_incr)
-                # Check if the voice is using pure sine
-                use_pure = voice.modulator_hz < PURE_SINE_MOD_HZ_THRESHOLD
-                # If the modulator fade is active and the voice is not using pure sine, update the modulator fade
-                if voice.mod_fade_active and not use_pure:
+                # Check if the voice is using FM off
+                fm_off = voice.modulator_hz < THRESHOLD_MOD_FM_OFF
+                # If the modulator fade is active and the voice is not using FM off, update the modulator fade
+                if voice.mod_fade_active and not fm_off:
                     voice.mod_fade = min(1.0, voice.mod_fade + fade_incr)
                     if voice.mod_fade >= 1.0:
                         voice.mod_fade_active = False
 
                 # Check if the voice is finished
-                if voice.env.envelope <= 0.0 or volume <= 0.0 or voice.carrier_hz <= 0.0:
+                if (
+                    voice.env.envelope <= 0.0
+                    or volume <= 0.0
+                    or voice.carrier_hz <= 0.0
+                ):
                     continue
 
-                # If the voice is using pure sine, set the instant frequency to the carrier frequency
-                if use_pure:
-                    # Create sound samples for pure sine
+                # If the voice is using FM off, set the instant frequency to the carrier frequency
+                if fm_off:
+                    # Create sound samples for FM off
                     instant_freq = voice.carrier_hz
-                # If the voice is using FM, create sound samples for FM
+                # If the voice is using FM on, create sound samples for FM
                 else:
                     # Create sound samples for FM
                     mod_signal = math.sin(two_pi * voice.mod_phase)
@@ -230,12 +235,12 @@ class FmEngine:
                 voice.carrier_phase = wrap_phase(
                     voice.carrier_phase + instant_freq / self.sample_rate
                 )
-                if not use_pure:
+                if not fm_off:
                     # Update the modulator phase
                     voice.mod_phase = wrap_phase(
                         voice.mod_phase + voice.modulator_hz / self.sample_rate
                     )
-            
+
             # If the voice is finished, add it to the finished list
             if voice.env.finished:
                 finished.append(voice.voice_id)

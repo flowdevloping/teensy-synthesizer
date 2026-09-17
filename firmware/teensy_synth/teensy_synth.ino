@@ -169,7 +169,7 @@ const float MAX_CARRIER_HZ = 4000.0f;
 const float MAX_MODULATOR_HZ = 300.0f;
 const float MAX_OUTPUT_AMPLITUDE = 1.0f; 
 const float MAX_MOD_DEPTH = 1.0f; 
-const float PURE_SINE_MOD_HZ_THRESHOLD = 1.0f; 
+const float THRESHOLD_MOD_FM_OFF = 1.0f; 
 
 const float ENVELOPE_ATTACK_MS = 0.0f; 
 const float ENVELOPE_RELEASE_MS = 150.0f; 
@@ -449,10 +449,10 @@ void noteOnVoice(int voice, float carrierHz, float modHz, float modDepth, int ca
   } 
   // Mode: FM Synth  
   else {
-    bool usePureSine = modHz < PURE_SINE_MOD_HZ_THRESHOLD;
-    modulators[voice]->frequency(usePureSine ? 20.0f : modHz); // 20Hz is the default value for usePureSine mode
+    bool fmOff = modHz < THRESHOLD_MOD_FM_OFF;
+    modulators[voice]->frequency(fmOff ? 20.0f : modHz); // 20Hz is the default value for fmOff mode
     
-    if (usePureSine) {
+    if (fmOff) {
       modFadeActive[voice] = false;
       targetModDepth[voice] = 0.0f;
       modulators[voice]->amplitude(0.0f);

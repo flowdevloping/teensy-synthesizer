@@ -1,9 +1,7 @@
-"""
-LFO cycle tables for the GUI editor and the Teensy RAM upload.
+"""Provide LFO waveform based on a preset or a custom form configurable through the GUI.
 
-The firmware plays one 256-sample cycle (power of two). The PC owns the shape:
-presets generate an exact cycle, the 8-point editor rebuilds a cycle, and both
-are uploaded as int16 chunks. This module does not talk to serial itself.
+The Teensy firmware plays one 256-sample cycle (power of two). This script generates a waveform from a preset or from a custom form. 
+Presets generate an exact cycle, the 8-point editor rebuilds a cycle, and both are uploaded as int16 chunks.
 """
 
 from __future__ import annotations
@@ -45,10 +43,12 @@ _LEGACY_SHAPE_TO_PRESET = {
 
 
 def _phase() -> np.ndarray:
+    """Generate a phase array from 0.0 to 1.0 with 256 samples."""
     return np.linspace(0.0, 1.0, LFO_WAVETABLE_SIZE, endpoint=False)
 
 
 def point_indices() -> np.ndarray:
+    """Generate indices for the LFO points."""
     step = LFO_WAVETABLE_SIZE // LFO_POINT_COUNT
     return np.arange(LFO_POINT_COUNT, dtype=np.int32) * step
 
@@ -77,8 +77,15 @@ def lfo_interp_from_label(label: str) -> str:
             return name
     return DEFAULT_LFO_INTERP
 
-# Clamps points in visual editor to -1.0 to 1.0
 def clamp_lfo_points(value: object) -> list[float]:
+    """Clamp the LFO set in the canvas to points -1.0 and 1.0.
+    
+    Args: 
+        value (object): The LFO points to clamp.
+
+    Returns:
+        list[float]: The clamped wavetable points.
+    """
     try:
         vals = [float(v) for v in value]  # type: ignore[union-attr]
     except (TypeError, ValueError):
@@ -91,6 +98,14 @@ def clamp_lfo_points(value: object) -> list[float]:
 
 
 def clamp_lfo_table(value: object) -> list[float]:
+    """Clamp the LFO table to 256 samples.
+    
+    Args: 
+        value (object): The LFO table to clamp.
+
+    Returns:
+        list[float]: The clamped wavetable array.
+    """
     try:
         arr = np.asarray(list(value), dtype=np.float64)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -109,7 +124,16 @@ def sample_points_from_table(table: object) -> list[float]:
     return [float(arr[i]) for i in point_indices()]
 
 # Converts points in visual editor to table for firmware
-def points_to_table(points: object, interp: object) -> list[float]:
+def points_to_table(points: list[float], interp: str) -> list[float]:
+    """Convert points in the canvas to a table for the firmware.
+    
+    Args: 
+        points (list[float]): The LFO points to convert.
+        interp (str): The LFO interpolation to use.
+
+    Returns:
+        list[float]: The converted wavetable array.
+    """
     pts = clamp_lfo_points(points)
     mode = clamp_lfo_interp(interp)
     step = LFO_WAVETABLE_SIZE // LFO_POINT_COUNT
@@ -124,7 +148,16 @@ def points_to_table(points: object, interp: object) -> list[float]:
     return [float(x) for x in np.clip(np.interp(t, xs, ys), -1.0, 1.0)]
 
 
-def generate_preset_table(preset: object, rng: np.random.Generator | None = None) -> list[float]:
+def generate_preset_table(preset: str, rng: np.random.Generator | None = None) -> list[float]:
+    """Generate wavetable array for the firmware based on the selected preset.
+    
+    Args: 
+        preset (str): The preset to generate.
+        rng (np.random.Generator | None): The random number generator to use.
+
+    Returns:
+        list[float]: The generated wavetable array.
+    """
     t = _phase()
     name = clamp_lfo_preset(preset)
     if name == "triangle":
@@ -140,7 +173,16 @@ def generate_preset_table(preset: object, rng: np.random.Generator | None = None
     return np.sin(2.0 * np.pi * t).tolist()
 
 
-def apply_lfo_preset(preset: object, rng: np.random.Generator | None = None) -> tuple[str, str, list[float], list[float]]:
+def apply_lfo_preset(preset: str, rng: np.random.Generator | None = None) -> tuple[str, str, list[float], list[float]]:
+    """Apply the LFO preset to the wavetable array.
+    
+    Args: 
+        preset (str): The preset to apply.
+        rng (np.random.Generator | None): The random number generator to use in the case of the S&H random preset.
+
+    Returns:
+        tuple[str, str, list[float], list[float]]: The preset, interpolation, points, and wavetable array.
+    """
     name = clamp_lfo_preset(preset)
     if name == "custom":
         name = DEFAULT_LFO_PRESET
@@ -152,21 +194,38 @@ def apply_lfo_preset(preset: object, rng: np.random.Generator | None = None) -> 
 
 
 def default_lfo_table() -> list[float]:
+    """Generate the default wavetable array based on the default preset."""
     return generate_preset_table(DEFAULT_LFO_PRESET)
 
 
 def default_lfo_points() -> list[float]:
+    """Generate the default wavetable points based on the default preset."""
     return sample_points_from_table(default_lfo_table())
 
 
-def table_to_int16(samples: object) -> list[int]:
+def table_to_int16(samples: list[float]) -> list[int]:
+    """Convert the wavetable array to a list of int16 values.
+    
+    Args: 
+        samples (list[float]): The wavetable array to convert.
+
+    Returns:
+        list[int]: The converted int16 values for the Teensy RAM upload.
+    """
     arr = np.asarray(clamp_lfo_table(samples), dtype=np.float64)
     clipped = np.clip(np.round(arr * 32767.0), -32767, 32767).astype(np.int16)
     return [int(v) for v in clipped]
 
 
 def lfo_state_from_mapping(data: dict | None) -> tuple[str, str, list[float], list[float]]:
-    """Load preset/interp/points/table from config or setup JSON, including legacy lfo_shape."""
+    """Load preset/interp/points/table from config or setup JSON.
+    
+    Args: 
+        data (dict | None): The data to load from.
+
+    Returns:
+        tuple[str, str, list[float], list[float]]: The preset, interpolation, points, and wavetable array.
+    """
     payload = data or {}
     table_raw = payload.get("lfo_table")
     points_raw = payload.get("lfo_points")

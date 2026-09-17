@@ -1,6 +1,4 @@
-"""
-Contains shared helpers for the FM engine: constants, envelope, clipping utilities.
-"""
+"""Provides shared helpers for the FM engine: constants, envelope, clipping utilities."""
 
 from __future__ import annotations
 
@@ -13,6 +11,7 @@ from safety_limits import (
     ENVELOPE_RELEASE_MS,
     FIRMWARE_MAX_AMPLITUDE,
 )
+
 SAMPLE_RATE = 44100
 BLOCK_SIZE = 256
 CHANNELS = 1

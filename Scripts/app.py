@@ -1,6 +1,4 @@
-"""
-Entry point for GUI application
-"""
+"""Provide the entry point for the GUI application."""
 
 from gui import run_app
 

@@ -1,27 +1,19 @@
-"""
-Contains class SerialClient:
-- Handles serial connection to Teensy
-- Handles voice slots allocation and release
-- Handles packet sending
-- Handles watchdog functionality
-"""
+"""Handles serial connection to Teensy, voice slots allocation and release, packet sending, and watchdog functionality."""
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import serial
-from serial.tools import list_ports
-
 from protocol import (
     build_all_notes_off,
     build_lfo_packet,
-    build_lfo_wavetable_packets,
+    build_lfo_waveform_packets,
     build_note_off,
-    build_packet,
+    build_note_on,
 )
-
+from serial.tools import list_ports
 
 BAUDRATE = 115200
 SERIAL_TIMEOUT = 0.1
@@ -32,11 +24,14 @@ TEENSY_MAX_VOICES = 8
 
 
 def list_com_ports() -> list[str]:
+    """List all available COM ports."""
     return [port.device for port in list_ports.comports()]
 
 
 @dataclass
 class WatchdogCallbacks:
+    """Callbacks for the watchdog functionality."""
+
     on_lost: Callable[[], None] | None = None
     on_reconnect_attempt: Callable[[str], None] | None = None
     on_reconnected: Callable[[str], None] | None = None
@@ -46,6 +41,12 @@ class WatchdogCallbacks:
 
 
 class SerialClient:
+    """Handles serial connection to Teensy, voice slots allocation and release, packet sending, and watchdog functionality.
+
+    Attributes:
+        port (str | None): Current COM port
+    """
+
     def __init__(self) -> None:
         self._ser: serial.Serial | None = None
         self.port: str | None = None
@@ -61,20 +62,22 @@ class SerialClient:
 
     @property
     def is_connected(self) -> bool:
+        """Check if the serial connection is established."""
         return self._ser is not None and self._ser.is_open
 
     # Clears all voice slots
     def clear_voice_slots(self) -> None:
+        """Clear all voice slots."""
         self._slot_by_voice.clear()
         self._voice_by_slot.clear()
         self._slot_order.clear()
 
-    # Allocates a Teensy voice slot for a voice
-    # Returns (slot, stolen_voice_id_ or _None)
     def alloc_slot(self, voice_id: str) -> tuple[int, str | None]:
-        """
-        Allocate a Teensy voice slot for voice_id.
-        Returns (slot, stolen_voice_id_ or _None).
+        """Allocate a Teensy voice slot for a voice.
+
+        Returns:
+            tuple[int, str | None]: The slot and the voice_id that was stolen if the slot was full.
+            If the slot was not full, the voice_id is None.
         """
         if voice_id in self._slot_by_voice:
             if voice_id in self._slot_order:
@@ -97,12 +100,12 @@ class SerialClient:
         self._slot_order.append(voice_id)
         return slot, stolen
 
-    # Returns the slot for a voice
     def get_slot(self, voice_id: str) -> int | None:
+        """Get the slot for a voice."""
         return self._slot_by_voice.get(voice_id)
 
-    # Releases a voice slot
     def release_slot(self, voice_id: str) -> int | None:
+        """Release a voice slot."""
         slot = self._slot_by_voice.pop(voice_id, None)
         if slot is None:
             return None
@@ -111,8 +114,8 @@ class SerialClient:
             self._slot_order.remove(voice_id)
         return slot
 
-    # Checks if the serial connection is established
     def check_connection(self) -> bool:
+        """Check if the serial connection is established."""
         if not self.is_connected or self._ser is None:
             return False
 
@@ -121,13 +124,14 @@ class SerialClient:
         except Exception:
             return False
 
-    # Connects to a serial port
     def connect(
         self,
         port: str,
         on_success: Callable[[], None] | None = None,
         on_error: Callable[[str], None] | None = None,
     ) -> None:
+        """Connect to a serial port."""
+
         def _connect() -> None:
             with self._connect_lock:
                 if self.is_connected:
@@ -155,8 +159,8 @@ class SerialClient:
         self._connect_thread = threading.Thread(target=_connect, daemon=True)
         self._connect_thread.start()
 
-    # Disconnects from the serial port
     def disconnect(self) -> None:
+        """Disconnect from the serial port."""
         if self._ser is not None:
             try:
                 if self._ser.is_open:
@@ -166,23 +170,21 @@ class SerialClient:
                 self.port = None
         self.clear_voice_slots()
 
-    # Sends a packet to the Teensy
     def send(
         self,
         carrier_hz: float,
         modulator_hz: float,
         volume_pct: int,
         mod_depth_pct: int,
-        pure_sine: bool = False,
         voice_id: int = 0,
         carrier_waveform: str | None = None,
     ) -> str:
-        packet = build_packet(
+        """Send a note on packet to the Teensy."""
+        packet = build_note_on(
             carrier_hz,
             modulator_hz,
             volume_pct,
             mod_depth_pct,
-            pure_sine=pure_sine,
             voice_id=voice_id,
             carrier_waveform=carrier_waveform,
         )
@@ -190,21 +192,19 @@ class SerialClient:
         self._write_packet(packet)
         return packet.strip()
 
-    # Sends a note off packet to the Teensy
     def send_note_off(
         self,
         modulator_hz: float,
         volume_pct: int,
         mod_depth_pct: int,
-        pure_sine: bool = False,
         voice_id: int = 0,
         carrier_waveform: str | None = None,
     ) -> str:
+        """Send a note off packet to the Teensy."""
         packet = build_note_off(
             modulator_hz,
             volume_pct,
             mod_depth_pct,
-            pure_sine=pure_sine,
             voice_id=voice_id,
             carrier_waveform=carrier_waveform,
         )
@@ -212,8 +212,8 @@ class SerialClient:
         self._write_packet(packet)
         return packet.strip()
 
-    # Sends a all notes off packet to the Teensy
-    def send_all_notes_off(self, volume_pct: int = 0) -> str:
+    def send_all_notes_off(self, volume_pct: int) -> str:
+        """Send a all notes off packet to the Teensy."""
         packet = build_all_notes_off(volume_pct)
         self._write_packet(packet)
         self.clear_voice_slots()
@@ -227,19 +227,20 @@ class SerialClient:
         cutoff_hz: float,
         resonance: float,
     ) -> str:
+        """Send a LFO ("L"-)packet to the Teensy."""
         packet = build_lfo_packet(rate_hz, depth_pct, cutoff_hz, resonance)
         self._write_packet(packet)
         return packet.strip()
 
-    # Function to send the LFO wavetable packets ('W' packets)
     def send_lfo_table(self, samples: list[int]) -> str:
-        packets = build_lfo_wavetable_packets(samples)
+        """Send a LFO waveform ("W"-)packet to the Teensy."""
+        packets = build_lfo_waveform_packets(samples)
         for packet in packets:
             self._write_packet(packet)
         return f"W,{len(packets)} chunks"
 
-    # Function to write a packet to the Teensy
     def _write_packet(self, packet: str) -> None:
+        """Write a packet to the Teensy."""
         if not self.is_connected or self._ser is None:
             raise RuntimeError("Not connected with Teensy.")
 
@@ -249,8 +250,11 @@ class SerialClient:
             self.disconnect()
             raise RuntimeError(str(exc)) from exc
 
-    # Watches the serial connection and reconnects if it is lost
     def start_watchdog(self, callbacks: WatchdogCallbacks) -> None:
+        """Start the watchdog thread.
+
+        Watch the serial connection and reconnect if it is lost.
+        """
         self._watchdog_callbacks = callbacks
         if self._watchdog_thread and self._watchdog_thread.is_alive():
             return
@@ -296,6 +300,6 @@ class SerialClient:
         self._watchdog_thread = threading.Thread(target=_watch, daemon=True)
         self._watchdog_thread.start()
 
-    # Stops the watchdog thread
     def stop_watchdog(self) -> None:
+        """Stop the watchdog thread."""
         self._watchdog_stop.set()

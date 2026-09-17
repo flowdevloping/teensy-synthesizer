@@ -1,6 +1,4 @@
-"""
-Contains functionality to save latest configuration
-"""
+"""Manage the loading and saving of app configuration."""
 
 import json
 from dataclasses import dataclass, field
@@ -36,6 +34,32 @@ from waveforms import (
 )
 @dataclass
 class AppConfig:
+    """Configure the application settings.
+    
+    Attributes:
+        last_port (str | None): The last port used for the serial connection (e.g. 'COM6').
+        last_midi_port (str | None): The last port used for the MIDI connection (e.g. 'APC Key 25 mk2 0').
+        auto_reconnect (bool): Whether to automatically reconnect to the serial port.
+        key_frequencies (dict[str, float]): The key frequencies for the PC keyboard.
+        carrier_waveform (str): The carrier waveform.
+        modulator_hz (float): The modulator frequency.
+        modulator_mode (str): The modulator mode.
+        modulator_ratio (float): The modulator ratio.
+        volume_pct (int): The volume percentage.
+        mod_depth_pct (int): The modulation depth percentage.
+        lfo_rate_hz (float): The LFO rate in Hz.
+        lfo_depth_pct (int): The LFO depth percentage.
+        lfo_preset (str): The LFO preset.
+        lfo_interp (str): The LFO interpolation.
+        lfo_points (list[float]): The LFO points.
+        lfo_table (list[float]): The LFO table.
+        filter_cutoff_hz (float): The filter cutoff frequency in Hz.
+        filter_resonance (float): The filter resonance.
+        active_preset (str): The active preset.
+        local_audio_enabled (bool): Whether the local audio is enabled.
+        last_setup_name (str): The last setup name.
+    """
+
     last_port: str | None = None
     last_midi_port: str | None = None
     auto_reconnect: bool = True
@@ -61,6 +85,12 @@ class AppConfig:
 
 # Function to load the config from the config file defined in CONFIG_PATH
 def load_config() -> AppConfig:
+    """Load the configuration from the config file defined in CONFIG_PATH and clamp safety critical values.
+    
+    Returns:
+        AppConfig: The validated configuration object.
+    """
+
     if not CONFIG_PATH.exists():
         return AppConfig()
 
@@ -103,6 +133,12 @@ def load_config() -> AppConfig:
 
 # Function to save the config to the config file defined in CONFIG_PATH
 def save_config(config: AppConfig) -> None:
+    """Save the configuration to the config file defined in CONFIG_PATH.
+    
+    Args:
+        config (AppConfig): The configuration object.
+    """
+
     data = {
         "last_port": config.last_port,
         "last_midi_port": config.last_midi_port,

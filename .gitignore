@@ -5,7 +5,6 @@ __pycache__/
 *.so
 
 # --- Virtual environments ---
-venv/
 .venv/
 env/
 ENV/
