@@ -25,8 +25,8 @@ Installation/Setup:
 
 ```powershell
 cd audio-module-project
-python -m venv venv # Create virtual environment
-.\venv\Scripts\activate # Activate virual environment
+python -m venv .venv # Create virtual environment
+.\.venv\Scripts\activate # Activate virual environment
 pip install -r requirements.txt # Install required python libraries 
 ```
 
@@ -41,8 +41,8 @@ python Scripts\app.py # Start the application
 Installation/Setup: 
 
 ```bash
-python3 -m venv venv # Create virtual environment
-source venv/bin/activate # Activate virtual environment
+python3 -m venv .venv # Create virtual environment
+source .venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries 
 ```
 
@@ -68,8 +68,8 @@ sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound
 Setup:
 
 ```bash
-python3 -m venv venv # Create virtual environment
-source venv/bin/activate # Activate virtual environment
+python3 -m venv .venv # Create virtual environment
+source .venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries
 ```
 
