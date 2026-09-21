@@ -79,9 +79,9 @@ with out_path.open("w", encoding="utf-8") as f:
     f.write("#pragma once\n#include <Arduino.h>\n\n")
     # Important: Using const to force ARM-Compiler on Teensy to keep the values in Flash memory instead of SRAM.
     # -> Could cause Out-of-Memory crash on Teensy 4.1
-    f.write(f"const uint16_t WAVEFORM_SIZE = {waveform_size};\n")
-    f.write(f"const uint16_t N_WAVEFORMS = {n_waveforms};\n\n")
-    f.write("const int16_t customWavetable[N_WAVEFORMS * WAVEFORM_SIZE] = {\n")
+    f.write(f"const uint16_t waveformSize = {waveform_size};\n")
+    f.write(f"const uint16_t nWaveforms = {n_waveforms};\n\n")
+    f.write("const int16_t customWavetable[nWaveforms * waveformSize] = {\n")
     for i, s in enumerate(samples):
         f.write(f"{int(s)},")
         if i % 16 == 15:

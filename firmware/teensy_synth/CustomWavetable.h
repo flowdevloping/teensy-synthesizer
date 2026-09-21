@@ -1,10 +1,10 @@
 #pragma once
 #include <Arduino.h>
 
-const uint16_t WAVEFORM_SIZE = 2048;
-const uint16_t N_WAVEFORMS = 32;
+const uint16_t waveformSize = 2048;
+const uint16_t nWaveforms = 32;
 
-const int16_t customWavetable[N_WAVEFORMS * WAVEFORM_SIZE] = {
+const int16_t customWavetable[nWaveforms * waveformSize] = {
 -8095,-8532,-8947,-9338,-9706,-10051,-10372,-10670,-10946,-11197,-11425,-11631,-11813,-11974,-12112,-12229,
 -12324,-12400,-12456,-12491,-12508,-12507,-12489,-12453,-12402,-12335,-12255,-12162,-12056,-11938,-11808,-11669,
 -11521,-11364,-11201,-11029,-10853,-10671,-10487,-10298,-10108,-9916,-9724,-9530,-9338,-9148,-8958,-8773,

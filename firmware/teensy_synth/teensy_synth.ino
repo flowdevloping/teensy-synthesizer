@@ -1,20 +1,10 @@
-/*
-Polyphonic FM synthesizer for Teensy 4.x (8 voices)
-Protocol v3: voiceId,carrierHz,modHz,volumePct,modDepthPct,carrierWave\n
-  voiceId 0..7  = note on/update for that voice (carrierHz>0)
-  voiceId 0..7  = note off for that voice (carrierHz==0)
-  voiceId -1    = all notes off
-  carrierWave   = 0 sine, 1 saw, 2 square, 3 triangle (applied to all voices)
-Protocol v2 packets (5 fields, no carrierWave) keep the current carrier waveform.
-Legacy 4-field packets (no voiceId) map to voice 0 and silence voices 1..7.
-Audio graph:
-  voices 0-3 -> voiceMixerA ─┐
-  voices 4-7 -> voiceMixerB ─┴─> sumMixer -> volumeAmp -> I2S
-*/
-
 // Synthesizer Code for Teensy 4.1
 // 
-// Implements synth architecture with Teensy Audio Library
+// Implements synthesizer architecture and functionality using the 'Teensy Audio Library' (refer to '/visuals/Synth.png'). 
+// IMPORTANT: 
+// Wavetable and LFO functionalities are implemented as separate classes (.h files).
+//
+// Implements parsing and processing of commands via serial port. 
 
 // Libraries
 #include <Arduino.h>
@@ -32,208 +22,208 @@ Audio graph:
 #include "CustomWavetable.h"
 
 // Constants
-const int NUM_VOICES = 8;
+const int numVoices = 8;
 
 // Teensy Audio Library components
-AudioSynthWaveformSine          modulator0, modulator1, modulator2, modulator3;
-AudioSynthWaveformSine          modulator4, modulator5, modulator6, modulator7; 
-AudioSynthWaveformModulated     carrier0, carrier1, carrier2, carrier3;
-AudioSynthWaveformModulated     carrier4, carrier5, carrier6, carrier7;
+AudioSynthWaveformSine          modulator_0, modulator_1, modulator_2, modulator_3;
+AudioSynthWaveformSine          modulator_4, modulator_5, modulator_6, modulator_7; 
+AudioSynthWaveformModulated     carrier_0, carrier_1, carrier_2, carrier_3;
+AudioSynthWaveformModulated     carrier_4, carrier_5, carrier_6, carrier_7;
 
 // Add:
-AudioSynthSerumWavetable        wavetable0, wavetable1, wavetable2, wavetable3; 
-AudioSynthSerumWavetable        wavetable4, wavetable5, wavetable6, wavetable7;
+AudioSynthSerumWavetable        wavetable_0, wavetable_1, wavetable_2, wavetable_3; 
+AudioSynthSerumWavetable        wavetable_4, wavetable_5, wavetable_6, wavetable_7;
 
 // Add:
-AudioMixer4                     sourceMixer0, sourceMixer1, sourceMixer2, sourceMixer3;
-AudioMixer4                     sourceMixer4, sourceMixer5, sourceMixer6, sourceMixer7;
+AudioMixer4                     source_mixer_0, source_mixer_1, source_mixer_2, source_mixer_3;
+AudioMixer4                     source_mixer_4, source_mixer_5, source_mixer_6, source_mixer_7;
 
-AudioEffectEnvelope             envelope0, envelope1, envelope2, envelope3;
-AudioEffectEnvelope             envelope4, envelope5, envelope6, envelope7;
-AudioMixer4                     voiceMixerA;  // voices 0-3
-AudioMixer4                     voiceMixerB;  // voices 4-7
-AudioMixer4                     sumMixer;     // A + B
+AudioEffectEnvelope             envelope_0, envelope_1, envelope_2, envelope_3;
+AudioEffectEnvelope             envelope_4, envelope_5, envelope_6, envelope_7;
+AudioMixer4                     voice_mixer_a;  // voices 0-3
+AudioMixer4                     voice_mixer_b;  // voices 4-7
+AudioMixer4                     sum_mixer;     // A + B
 
 // Add:
 // Global LFO + filter: the LFO modulates the filter cutoff (global for all 8 voices)
 AudioLfo                 lfo;           // LFO shape generator (no audio input)
-AudioFilterStateVariable        globalFilter;  // State-variable filter (LFO wobble on cutoff)
+AudioFilterStateVariable        global_filter;  // State-variable filter (LFO wobble on cutoff)
 
-AudioAmplifier                  volumeAmp;
+AudioAmplifier                  volume_amp;
 AudioOutputI2S2                 i2s2_output;
 
 // Audio connections
-AudioConnection patch_Mod_Car_0(modulator0, 0, carrier0, 0);
-AudioConnection patch_Mod_Car_1(modulator1, 0, carrier1, 0);
-AudioConnection patch_Mod_Car_2(modulator2, 0, carrier2, 0);
-AudioConnection patch_Mod_Car_3(modulator3, 0, carrier3, 0);
-AudioConnection patch_Mod_Car_4(modulator4, 0, carrier4, 0);
-AudioConnection patch_Mod_Car_5(modulator5, 0, carrier5, 0);
-AudioConnection patch_Mod_Car_6(modulator6, 0, carrier6, 0);
-AudioConnection patch_Mod_Car_7(modulator7, 0, carrier7, 0);
+AudioConnection patch_mod_car_0(modulator_0, 0, carrier_0, 0);
+AudioConnection patch_mod_car_1(modulator_1, 0, carrier_1, 0);
+AudioConnection patch_mod_car_2(modulator_2, 0, carrier_2, 0);
+AudioConnection patch_mod_car_3(modulator_3, 0, carrier_3, 0);
+AudioConnection patch_mod_car_4(modulator_4, 0, carrier_4, 0);
+AudioConnection patch_mod_car_5(modulator_5, 0, carrier_5, 0);
+AudioConnection patch_mod_car_6(modulator_6, 0, carrier_6, 0);
+AudioConnection patch_mod_car_7(modulator_7, 0, carrier_7, 0);
 
 // Add:
-AudioConnection patch_Car_SourceMixer_0(carrier0, 0, sourceMixer0, 0);
-AudioConnection patch_Car_SourceMixer_1(carrier1, 0, sourceMixer1, 0);
-AudioConnection patch_Car_SourceMixer_2(carrier2, 0, sourceMixer2, 0);
-AudioConnection patch_Car_SourceMixer_3(carrier3, 0, sourceMixer3, 0);
-AudioConnection patch_Car_SourceMixer_4(carrier4, 0, sourceMixer4, 0);
-AudioConnection patch_Car_SourceMixer_5(carrier5, 0, sourceMixer5, 0);
-AudioConnection patch_Car_SourceMixer_6(carrier6, 0, sourceMixer6, 0);
-AudioConnection patch_Car_SourceMixer_7(carrier7, 0, sourceMixer7, 0);
+AudioConnection patch_car_source_mixer_0(carrier_0, 0, source_mixer_0, 0);
+AudioConnection patch_car_source_mixer_1(carrier_1, 0, source_mixer_1, 0);
+AudioConnection patch_car_source_mixer_2(carrier_2, 0, source_mixer_2, 0);
+AudioConnection patch_car_source_mixer_3(carrier_3, 0, source_mixer_3, 0);
+AudioConnection patch_car_source_mixer_4(carrier_4, 0, source_mixer_4, 0);
+AudioConnection patch_car_source_mixer_5(carrier_5, 0, source_mixer_5, 0);
+AudioConnection patch_car_source_mixer_6(carrier_6, 0, source_mixer_6, 0);
+AudioConnection patch_car_source_mixer_7(carrier_7, 0, source_mixer_7, 0);
 
 /* Remove: 
-AudioConnection patch_Car0(carrier0, 0, envelope0, 0);
-AudioConnection patch_Car1(carrier1, 0, envelope1, 0);
-AudioConnection patch_Car2(carrier2, 0, envelope2, 0);
-AudioConnection patch_Car3(carrier3, 0, envelope3, 0);
-AudioConnection patch_Car4(carrier4, 0, envelope4, 0);
-AudioConnection patch_Car5(carrier5, 0, envelope5, 0);
-AudioConnection patch_Car6(carrier6, 0, envelope6, 0);
-AudioConnection patch_Car7(carrier7, 0, envelope7, 0);
+AudioConnection patch_car_0(carrier_0, 0, envelope_0, 0);
+AudioConnection patch_car_1(carrier_1, 0, envelope_1, 0);
+AudioConnection patch_car_2(carrier_2, 0, envelope_2, 0);
+AudioConnection patch_car_3(carrier_3, 0, envelope_3, 0);
+AudioConnection patch_car_4(carrier_4, 0, envelope_4, 0);
+AudioConnection patch_car_5(carrier_5, 0, envelope_5, 0);
+AudioConnection patch_car_6(carrier_6, 0, envelope_6, 0);
+AudioConnection patch_car_7(carrier_7, 0, envelope_7, 0);
 */
 
 // Add: 
-AudioConnection patch_Wav_SourceMixer_0(wavetable0, 0, sourceMixer0, 1);
-AudioConnection patch_Wav_SourceMixer_1(wavetable1, 0, sourceMixer1, 1);
-AudioConnection patch_Wav_SourceMixer_2(wavetable2, 0, sourceMixer2, 1);
-AudioConnection patch_Wav_SourceMixer_3(wavetable3, 0, sourceMixer3, 1);
-AudioConnection patch_Wav_SourceMixer_4(wavetable4, 0, sourceMixer4, 1);
-AudioConnection patch_Wav_SourceMixer_5(wavetable5, 0, sourceMixer5, 1);
-AudioConnection patch_Wav_SourceMixer_6(wavetable6, 0, sourceMixer6, 1);
-AudioConnection patch_Wav_SourceMixer_7(wavetable7, 0, sourceMixer7, 1);
+AudioConnection patch_wav_source_mixer_0(wavetable_0, 0, source_mixer_0, 1);
+AudioConnection patch_wav_source_mixer_1(wavetable_1, 0, source_mixer_1, 1);
+AudioConnection patch_wav_source_mixer_2(wavetable_2, 0, source_mixer_2, 1);
+AudioConnection patch_wav_source_mixer_3(wavetable_3, 0, source_mixer_3, 1);
+AudioConnection patch_wav_source_mixer_4(wavetable_4, 0, source_mixer_4, 1);
+AudioConnection patch_wav_source_mixer_5(wavetable_5, 0, source_mixer_5, 1);
+AudioConnection patch_wav_source_mixer_6(wavetable_6, 0, source_mixer_6, 1);
+AudioConnection patch_wav_source_mixer_7(wavetable_7, 0, source_mixer_7, 1);
 
 // Add: 
-AudioConnection patch_SourceMixer_Env_0(sourceMixer0, 0, envelope0, 0);
-AudioConnection patch_SourceMixer_Env_1(sourceMixer1, 0, envelope1, 0);
-AudioConnection patch_SourceMixer_Env_2(sourceMixer2, 0, envelope2, 0);
-AudioConnection patch_SourceMixer_Env_3(sourceMixer3, 0, envelope3, 0);
-AudioConnection patch_SourceMixer_Env_4(sourceMixer4, 0, envelope4, 0);
-AudioConnection patch_SourceMixer_Env_5(sourceMixer5, 0, envelope5, 0);
-AudioConnection patch_SourceMixer_Env_6(sourceMixer6, 0, envelope6, 0);
-AudioConnection patch_SourceMixer_Env_7(sourceMixer7, 0, envelope7, 0);
+AudioConnection patch_source_mixer_env_0(source_mixer_0, 0, envelope_0, 0);
+AudioConnection patch_source_mixer_env_1(source_mixer_1, 0, envelope_1, 0);
+AudioConnection patch_source_mixer_env_2(source_mixer_2, 0, envelope_2, 0);
+AudioConnection patch_source_mixer_env_3(source_mixer_3, 0, envelope_3, 0);
+AudioConnection patch_source_mixer_env_4(source_mixer_4, 0, envelope_4, 0);
+AudioConnection patch_source_mixer_env_5(source_mixer_5, 0, envelope_5, 0);
+AudioConnection patch_source_mixer_env_6(source_mixer_6, 0, envelope_6, 0);
+AudioConnection patch_source_mixer_env_7(source_mixer_7, 0, envelope_7, 0);
 
-AudioConnection patch_Env_VoiceMixerA_0(envelope0, 0, voiceMixerA, 0);
-AudioConnection patch_Env_VoiceMixerA_1(envelope1, 0, voiceMixerA, 1);
-AudioConnection patch_Env_VoiceMixerA_2(envelope2, 0, voiceMixerA, 2);
-AudioConnection patch_Env_VoiceMixerA_3(envelope3, 0, voiceMixerA, 3);
-AudioConnection patch_Env_VoiceMixerB_0(envelope4, 0, voiceMixerB, 0);
-AudioConnection patch_Env_VoiceMixerB_1(envelope5, 0, voiceMixerB, 1);
-AudioConnection patch_Env_VoiceMixerB_2(envelope6, 0, voiceMixerB, 2);
-AudioConnection patch_Env_VoiceMixerB_3(envelope7, 0, voiceMixerB, 3);
+AudioConnection patch_env_voice_mixer_a_0(envelope_0, 0, voice_mixer_a, 0);
+AudioConnection patch_env_voice_mixer_a_1(envelope_1, 0, voice_mixer_a, 1);
+AudioConnection patch_env_voice_mixer_a_2(envelope_2, 0, voice_mixer_a, 2);
+AudioConnection patch_env_voice_mixer_a_3(envelope_3, 0, voice_mixer_a, 3);
+AudioConnection patch_env_voice_mixer_b_0(envelope_4, 0, voice_mixer_b, 0);
+AudioConnection patch_env_voice_mixer_b_1(envelope_5, 0, voice_mixer_b, 1);
+AudioConnection patch_env_voice_mixer_b_2(envelope_6, 0, voice_mixer_b, 2);
+AudioConnection patch_env_voice_mixer_b_3(envelope_7, 0, voice_mixer_b, 3);
 
-AudioConnection patch_VoiceMixerA_SumMixer(voiceMixerA, 0, sumMixer, 0);
-AudioConnection patch_VoiceMixerB_SumMixer(voiceMixerB, 0, sumMixer, 1);
+AudioConnection patch_voice_mixer_a_sum_mixer(voice_mixer_a, 0, sum_mixer, 0);
+AudioConnection patch_voice_mixer_b_sum_mixer(voice_mixer_b, 0, sum_mixer, 1);
 
 /* Remove:
-AudioConnection patch_SumMixer_Amp(sumMixer, 0, volumeAmp, 0);
+AudioConnection patch_sum_mixer_amp(sum_mixer, 0, volume_amp, 0);
 */
 // Add:
 // Insert the global filter into the signal path and feed the LFO into its control input.
 // AudioFilterStateVariable: input 0 = signal, input 1 = cutoff modulation;
 //                           output 0 = lowpass, 1 = bandpass, 2 = highpass.
-AudioConnection patch_SumMixer_Filter(sumMixer, 0, globalFilter, 0);
-AudioConnection patch_Lfo_Filter(lfo, 0, globalFilter, 1);
-AudioConnection patch_Filter_Amp(globalFilter, 0, volumeAmp, 0);  // output 0 = lowpass
+AudioConnection patch_sum_mixer_filter(sum_mixer, 0, global_filter, 0);
+AudioConnection patch_lfo_filter(lfo, 0, global_filter, 1);
+AudioConnection patch_filter_amp(global_filter, 0, volume_amp, 0);  // output 0 = lowpass
 
-AudioConnection patch_Amp_Out_0(volumeAmp, 0, i2s2_output, 0);
-AudioConnection patch_Amp_Out_1(volumeAmp, 0, i2s2_output, 1);
+AudioConnection patch_amp_out_0(volume_amp, 0, i2s2_output, 0);
+AudioConnection patch_amp_out_1(volume_amp, 0, i2s2_output, 1);
 
 // Modulators
-AudioSynthWaveformSine* modulators[NUM_VOICES] = {
-  &modulator0, &modulator1, &modulator2, &modulator3,
-  &modulator4, &modulator5, &modulator6, &modulator7
+AudioSynthWaveformSine* modulators[numVoices] = {
+  &modulator_0, &modulator_1, &modulator_2, &modulator_3,
+  &modulator_4, &modulator_5, &modulator_6, &modulator_7
 };
 // Carriers
-AudioSynthWaveformModulated* carriers[NUM_VOICES] = {
-  &carrier0, &carrier1, &carrier2, &carrier3,
-  &carrier4, &carrier5, &carrier6, &carrier7
+AudioSynthWaveformModulated* carriers[numVoices] = {
+  &carrier_0, &carrier_1, &carrier_2, &carrier_3,
+  &carrier_4, &carrier_5, &carrier_6, &carrier_7
 };
 
 // Add:
 // Wavetables
-AudioSynthSerumWavetable* wavetables[NUM_VOICES] = {
-  &wavetable0, &wavetable1, &wavetable2, &wavetable3,
-  &wavetable4, &wavetable5, &wavetable6, &wavetable7
+AudioSynthSerumWavetable* wavetables[numVoices] = {
+  &wavetable_0, &wavetable_1, &wavetable_2, &wavetable_3,
+  &wavetable_4, &wavetable_5, &wavetable_6, &wavetable_7
 };
 // SourceMixers
-AudioMixer4* sourceMixers[NUM_VOICES] = {
-  &sourceMixer0, &sourceMixer1, &sourceMixer2, &sourceMixer3,
-  &sourceMixer4, &sourceMixer5, &sourceMixer6, &sourceMixer7
+AudioMixer4* source_mixers[numVoices] = {
+  &source_mixer_0, &source_mixer_1, &source_mixer_2, &source_mixer_3,
+  &source_mixer_4, &source_mixer_5, &source_mixer_6, &source_mixer_7
 };
 
 // Envelopes
-AudioEffectEnvelope* envelopes[NUM_VOICES] = {
-  &envelope0, &envelope1, &envelope2, &envelope3,
-  &envelope4, &envelope5, &envelope6, &envelope7
+AudioEffectEnvelope* envelopes[numVoices] = {
+  &envelope_0, &envelope_1, &envelope_2, &envelope_3,
+  &envelope_4, &envelope_5, &envelope_6, &envelope_7
 };
 
 // Parameters
-const float MAX_CARRIER_HZ = 4000.0f; 
-const float MAX_MODULATOR_HZ = 300.0f;
-const float MAX_OUTPUT_AMPLITUDE = 1.0f; 
-const float MAX_MOD_DEPTH = 1.0f; 
-const float THRESHOLD_MOD_FM_OFF = 1.0f; 
+const float maxCarrierHz = 4000.0f; 
+const float maxModulatorHz = 300.0f;
+const float maxOutputAmplitude = 1.0f; 
+const float maxModDepth = 1.0f; 
+const float thresholdModFmOff = 1.0f; 
 
-const float ENVELOPE_ATTACK_MS = 0.0f; 
-const float ENVELOPE_RELEASE_MS = 150.0f; 
-const float MODULATOR_FADE_MS = 50.0f; 
+const float envelopeAttackMs = 0.0f; 
+const float envelopeReleaseMs = 150.0f; 
+const float modulatorFadeMs = 50.0f; 
 
 // Add:
 // Global LFO + filter parameters
-// LFO rate range matches LfoMinHz/LfoMaxHz inside AudioLfo.
-const float LFO_MIN_RATE_HZ = 0.01f;
-const float LFO_MAX_RATE_HZ = 100.0f;
-const float LFO_DEFAULT_RATE_HZ = 2.0f;
-const float LFO_DEFAULT_DEPTH = 0.0f;     // 0 = LFO off by default (no wobble)
+// LFO rate range matches lfoMinHz/lfoMaxHz inside AudioLfo.
+const float lfoMinRateHz = 0.01f;
+const float lfoMaxRateHz = 100.0f;
+const float lfoDefaultRateHz = 2.0f;
+const float lfoDefaultDepth = 0.0f;     // 0 = LFO off by default (no wobble)
 // A full-scale LFO signal shifts the filter cutoff by this many octaves.
-const float FILTER_CONTROL_OCTAVES = 2.0f;
-const float FILTER_MIN_CUTOFF_HZ = 20.0f;
-const float FILTER_MAX_CUTOFF_HZ = 12000.0f;
-const float FILTER_DEFAULT_CUTOFF_HZ = 12000.0f;  // fully open by default
-const float FILTER_MIN_Q = 0.7f;
-const float FILTER_MAX_Q = 5.0f;
-const float FILTER_DEFAULT_Q = 0.7f;
+const float filterControlOctaves = 2.0f;
+const float filterMinCutoffHz = 20.0f;
+const float filterMaxCutoffHz = 12000.0f;
+const float filterDefaultCutoffHz = 12000.0f;  // fully open by default
+const float filterMinQ = 0.7f;
+const float filterMaxQ = 5.0f;
+const float filterDefaultQ = 0.7f;
 // RAM LFO cycle uploaded from the GUI (W,offset,count,...). Power of two for AudioLfo.
-const uint16_t LFO_WAVETABLE_SIZE = 256;
-const int LFO_TABLE_CHUNK_MAX = 32;
-int16_t lfoBuf[2][LFO_WAVETABLE_SIZE];
-volatile uint8_t lfoPlay = 0;
+const uint16_t lfoWavetableSize = 256;
+const int lfoTableChunkMax = 32;
+int16_t lfo_buf[2][lfoWavetableSize];
+volatile uint8_t lfo_play = 0;
 
 // Carrier waveform (shared by all voices)
 // A full-scale modulation input shifts the carrier by this many octaves. One octave
 // matches the fixed range of AudioSynthWaveformSineModulated, so the mod depth sent
 // by the GUI keeps its meaning.
-const float CARRIER_FM_OCTAVES = 1.0f;
-const int CARRIER_WAVE_WAVETABLE = 4; 
-int currentCarrierWaveId = 0;  
-short currentCarrierWave = WAVEFORM_SINE; 
+const float carrierFmOctaves = 1.0f;
+const int carrierWaveWavetable = 4; 
+int current_carrier_wave_id = 0;  
+short current_carrier_wave = WAVEFORM_SINE; 
 
 // Amplifier parameters
-const int AMP_SD_PIN = 23; 
-bool ampEnabled = false; 
-unsigned long ampMuteAtMs = 0;  
+const int ampSdPin = 23; 
+bool amp_enabled = false; 
+unsigned long amp_mute_at_ms = 0;  
 
-const unsigned long AMP_BOOT_MUTE_MS = 200; 
-const unsigned long AMP_ENABLE_SETTLE_MS = 50; 
-const unsigned long AMP_MUTE_AFTER_RELEASE_MS = (unsigned long)ENVELOPE_RELEASE_MS + 20; 
+const unsigned long ampBootMuteMs = 200; 
+const unsigned long ampEnableSettleMs = 50; 
+const unsigned long ampMuteAfterReleaseMs = (unsigned long)envelopeReleaseMs + 20; 
 
-bool voiceActive[NUM_VOICES] = {false, false, false, false, false, false, false, false}; 
-unsigned long voiceReleaseUntilMs[NUM_VOICES] = {0, 0, 0, 0, 0, 0, 0, 0}; 
+bool voice_active[numVoices] = {false, false, false, false, false, false, false, false}; 
+unsigned long voice_release_until_ms[numVoices] = {0, 0, 0, 0, 0, 0, 0, 0}; 
 
-float targetModDepth[NUM_VOICES] = {0, 0, 0, 0, 0, 0, 0, 0}; 
-bool modFadeActive[NUM_VOICES] = {false, false, false, false, false, false, false, false}; 
-unsigned long modFadeStartMs[NUM_VOICES] = {0, 0, 0, 0, 0, 0, 0, 0}; 
+float target_mod_depth[numVoices] = {0, 0, 0, 0, 0, 0, 0, 0}; 
+bool mod_fade_active[numVoices] = {false, false, false, false, false, false, false, false}; 
+unsigned long mod_fade_start_ms[numVoices] = {0, 0, 0, 0, 0, 0, 0, 0}; 
  
-float clampValue(float value, float maxValue) {
+float ClampValue(float value, float max_value) {
   if (value < 0.0f) return 0.0f;
-  if (value > maxValue) return maxValue;
+  if (value > max_value) return max_value;
   return value;
 }
 
 // Maps a protocol waveform ID to a waveform of the Teensy Audio Library
-short carrierWaveformFromId(int waveId) {
-  switch (waveId) {
+short CarrierWaveformFromId(int wave_id) {
+  switch (wave_id) {
     case 1:  return WAVEFORM_SAWTOOTH;
     case 2:  return WAVEFORM_SQUARE;
     case 3:  return WAVEFORM_TRIANGLE;
@@ -242,111 +232,111 @@ short carrierWaveformFromId(int waveId) {
 }
 
 // Function to fill the LFO sine wavetable
-void fillLfoSine(int16_t* dest) {
-  for (uint16_t i = 0; i < LFO_WAVETABLE_SIZE; ++i) {
-    float sample = sinf((TWO_PI * (float)i) / (float)LFO_WAVETABLE_SIZE);
+void FillLfoSine(int16_t* dest) {
+  for (uint16_t i = 0; i < lfoWavetableSize; ++i) {
+    float sample = sinf((TWO_PI * (float)i) / (float)lfoWavetableSize);
     long scaled = lroundf(sample * 32767.0f);
     dest[i] = (int16_t)constrain(scaled, -32767L, 32767L);
   }
 }
 
 // Function to apply the LFO wavetable
-void applyLfoTable() {
-  lfo.setWaveformTable(lfoBuf[lfoPlay], LFO_WAVETABLE_SIZE);
+void ApplyLfoTable() {
+  lfo.SetWaveformTable(lfo_buf[lfo_play], lfoWavetableSize);
 }
 
-// Function to apply the LFO rate (frequency [Hz]) and depth (amplitude [0..1]). Shape lives in lfoBuf.
-void applyLfo(float rateHz, float depth) {
-  lfo.setFrequency(constrain(rateHz, LFO_MIN_RATE_HZ, LFO_MAX_RATE_HZ));
-  lfo.setAmplitude(constrain(depth, 0.0f, 1.0f));
+// Function to apply the LFO rate (frequency [Hz]) and depth (amplitude [0..1]). Shape lives in lfo_buf.
+void ApplyLfo(float rate_hz, float depth) {
+  lfo.SetFrequency(constrain(rate_hz, lfoMinRateHz, lfoMaxRateHz));
+  lfo.SetAmplitude(constrain(depth, 0.0f, 1.0f));
 }
 
 // Function to write a 'W packet' (W,offset,count,v0,...,vN-1) into the back buffer and swaps on a complete table.
-void applyLfoTableChunk(const String& inputString) {
-  int c0 = inputString.indexOf(',');
-  int c1 = inputString.indexOf(',', c0 + 1);
-  int c2 = inputString.indexOf(',', c1 + 1);
+void ApplyLfoTableChunk(const String& input_string) {
+  int c0 = input_string.indexOf(',');
+  int c1 = input_string.indexOf(',', c0 + 1);
+  int c2 = input_string.indexOf(',', c1 + 1);
   if (c0 < 0 || c1 < 0 || c2 < 0) {
     return;
   }
 
-  int offset = inputString.substring(c0 + 1, c1).toInt();
-  int count = inputString.substring(c1 + 1, c2).toInt();
-  if (offset < 0 || count <= 0 || count > LFO_TABLE_CHUNK_MAX) {
+  int offset = input_string.substring(c0 + 1, c1).toInt();
+  int count = input_string.substring(c1 + 1, c2).toInt();
+  if (offset < 0 || count <= 0 || count > lfoTableChunkMax) {
     return;
   }
-  if (offset + count > (int)LFO_WAVETABLE_SIZE) {
+  if (offset + count > (int)lfoWavetableSize) {
     return;
   }
 
-  uint8_t back = 1 - lfoPlay;
+  uint8_t back = 1 - lfo_play;
   int pos = c2;
   for (int i = 0; i < count; ++i) {
-    int nextComma = inputString.indexOf(',', pos + 1);
-    String token = (nextComma < 0)
-      ? inputString.substring(pos + 1)
-      : inputString.substring(pos + 1, nextComma);
+    int next_comma = input_string.indexOf(',', pos + 1);
+    String token = (next_comma < 0)
+      ? input_string.substring(pos + 1)
+      : input_string.substring(pos + 1, next_comma);
     token.trim();
     long val = token.toInt();
     if (val < -32767) val = -32767;
     if (val > 32767) val = 32767;
-    lfoBuf[back][offset + i] = (int16_t)val;
-    if (nextComma < 0) {
+    lfo_buf[back][offset + i] = (int16_t)val;
+    if (next_comma < 0) {
       if (i != count - 1) {
         return;
       }
       break;
     }
-    pos = nextComma;
+    pos = next_comma;
   }
 
-  if (offset + count == (int)LFO_WAVETABLE_SIZE) {
-    lfoPlay = back;
-    applyLfoTable();
+  if (offset + count == (int)lfoWavetableSize) {
+    lfo_play = back;
+    ApplyLfoTable();
   }
 }
 
 // Applies cutoff (Hz) and resonance (Q) to the global filter
-void applyFilter(float cutoffHz, float resonance) {
-  globalFilter.frequency(constrain(cutoffHz, FILTER_MIN_CUTOFF_HZ, FILTER_MAX_CUTOFF_HZ));
-  globalFilter.resonance(constrain(resonance, FILTER_MIN_Q, FILTER_MAX_Q));
+void ApplyFilter(float cutoff_hz, float resonance) {
+  global_filter.frequency(constrain(cutoff_hz, filterMinCutoffHz, filterMaxCutoffHz));
+  global_filter.resonance(constrain(resonance, filterMinQ, filterMaxQ));
 }
 
 // Applies a carrier waveform to all voices, only when it actually changed
-void applyCarrierWaveform(short waveform) {
-  if (waveform == currentCarrierWave) return;
-  currentCarrierWave = waveform;
-  for (int i = 0; i < NUM_VOICES; i++) {
+void ApplyCarrierWaveform(short waveform) {
+  if (waveform == current_carrier_wave) return;
+  current_carrier_wave = waveform;
+  for (int i = 0; i < numVoices; i++) {
     carriers[i]->begin(waveform);
   }
 }
 
 // Add:
-// Applies gain of sourceMixer based on what synthesis method is chosen by the user
-void applyCarrierSource(int waveId) {
-  if (waveId == currentCarrierWaveId) return; 
-  currentCarrierWaveId = waveId; 
-  bool useWavetable = (waveId == CARRIER_WAVE_WAVETABLE);
-  for (int i = 0; i < NUM_VOICES; i++) {
-    sourceMixers[i]->gain(0, useWavetable ? 0.0f : 1.0f);
-    sourceMixers[i]->gain(1, useWavetable ? 1.0f : 0.0f);
+// Applies gain of source_mixer based on what synthesis method is chosen by the user
+void ApplyCarrierSource(int wave_id) {
+  if (wave_id == current_carrier_wave_id) return; 
+  current_carrier_wave_id = wave_id; 
+  bool use_wavetable = (wave_id == carrierWaveWavetable);
+  for (int i = 0; i < numVoices; i++) {
+    source_mixers[i]->gain(0, use_wavetable ? 0.0f : 1.0f);
+    source_mixers[i]->gain(1, use_wavetable ? 1.0f : 0.0f);
   }
 }
 
-int countActiveVoices() {
+int CountActiveVoices() {
   int n = 0;
-  for (int i = 0; i < NUM_VOICES; i++) {
-    if (voiceActive[i]) n++;
+  for (int i = 0; i < numVoices; i++) {
+    if (voice_active[i]) n++;
   }
   return n;
 }
 
 // Count voices that still occupy mixer headroom (held notes + release tail).
-int countSoundingVoices() {
+int CountSoundingVoices() {
   unsigned long now = millis();
   int n = 0;
-  for (int i = 0; i < NUM_VOICES; i++) {
-    if (voiceActive[i] || (voiceReleaseUntilMs[i] != 0 && now < voiceReleaseUntilMs[i])) {
+  for (int i = 0; i < numVoices; i++) {
+    if (voice_active[i] || (voice_release_until_ms[i] != 0 && now < voice_release_until_ms[i])) {
       n++;
     }
   }
@@ -354,225 +344,225 @@ int countSoundingVoices() {
 }
 
 // 1.0 / N so one voice is full-scale and eight voices stay within headroom.
-void updateVoiceMixGains() {
-  int n = countSoundingVoices();
+void UpdateVoiceMixGains() {
+  int n = CountSoundingVoices();
   if (n < 1) n = 1;
   float gain = 1.0f / (float)n;
   for (int ch = 0; ch < 4; ch++) {
-    voiceMixerA.gain(ch, gain);
-    voiceMixerB.gain(ch, gain);
+    voice_mixer_a.gain(ch, gain);
+    voice_mixer_b.gain(ch, gain);
   }
 }
 
-void setAmpEnabled(bool enabled) {
-  ampEnabled = enabled;
-  digitalWrite(AMP_SD_PIN, enabled ? HIGH : LOW);
+void SetAmpEnabled(bool enabled) {
+  amp_enabled = enabled;
+  digitalWrite(ampSdPin, enabled ? HIGH : LOW);
 }
 
-void cancelAmpMuteSchedule() {
-  ampMuteAtMs = 0;
+void CancelAmpMuteSchedule() {
+  amp_mute_at_ms = 0;
 }
 
-void scheduleAmpMuteAfterRelease() {
-  ampMuteAtMs = millis() + AMP_MUTE_AFTER_RELEASE_MS;
+void ScheduleAmpMuteAfterRelease() {
+  amp_mute_at_ms = millis() + ampMuteAfterReleaseMs;
 }
 
-void updateAmpMuteSchedule() {
-  if (ampMuteAtMs != 0 && millis() >= ampMuteAtMs) {
-    ampMuteAtMs = 0;
-    if (countActiveVoices() == 0) {
-      setAmpEnabled(false);
+void UpdateAmpMuteSchedule() {
+  if (amp_mute_at_ms != 0 && millis() >= amp_mute_at_ms) {
+    amp_mute_at_ms = 0;
+    if (CountActiveVoices() == 0) {
+      SetAmpEnabled(false);
     }
   }
 }
 
-void prepareAmpForNote() {
-  cancelAmpMuteSchedule();
-  if (ampEnabled) {
+void PrepareAmpForNote() {
+  CancelAmpMuteSchedule();
+  if (amp_enabled) {
     return;
   }
-  setAmpEnabled(true);
-  delay(AMP_ENABLE_SETTLE_MS);
+  SetAmpEnabled(true);
+  delay(ampEnableSettleMs);
 }
 
-void setOutputVolume(float amplitude) {
-  volumeAmp.gain(amplitude);
+void SetOutputVolume(float amplitude) {
+  volume_amp.gain(amplitude);
 }
 
-void applyModDepth(int voice, float depth, bool fadeIn) {
-  targetModDepth[voice] = depth;
-  if (!fadeIn || MODULATOR_FADE_MS <= 0.0f) {
-    modFadeActive[voice] = false;
+void ApplyModDepth(int voice, float depth, bool fade_in) {
+  target_mod_depth[voice] = depth;
+  if (!fade_in || modulatorFadeMs <= 0.0f) {
+    mod_fade_active[voice] = false;
     modulators[voice]->amplitude(depth);
     return;
   }
-  modFadeStartMs[voice] = millis();
-  modFadeActive[voice] = true;
+  mod_fade_start_ms[voice] = millis();
+  mod_fade_active[voice] = true;
   modulators[voice]->amplitude(0.0f);
 }
 
-void updateModulatorFades() {
-  if (MODULATOR_FADE_MS <= 0.0f) {
+void UpdateModulatorFades() {
+  if (modulatorFadeMs <= 0.0f) {
     return;
   }
-  for (int i = 0; i < NUM_VOICES; i++) {
-    if (!modFadeActive[i]) continue;
-    unsigned long elapsed = millis() - modFadeStartMs[i];
-    float progress = (float)elapsed / MODULATOR_FADE_MS;
+  for (int i = 0; i < numVoices; i++) {
+    if (!mod_fade_active[i]) continue;
+    unsigned long elapsed = millis() - mod_fade_start_ms[i];
+    float progress = (float)elapsed / modulatorFadeMs;
     if (progress >= 1.0f) {
       progress = 1.0f;
-      modFadeActive[i] = false;
+      mod_fade_active[i] = false;
     }
-    modulators[i]->amplitude(targetModDepth[i] * progress);
+    modulators[i]->amplitude(target_mod_depth[i] * progress);
   }
 }
 
 /* Remove
-void noteOnVoice(int voice, float carrierHz, float modHz, float modDepth)
+void NoteOnVoice(int voice, float carrier_hz, float mod_hz, float mod_depth)
 */
 // Add: 
-void noteOnVoice(int voice, float carrierHz, float modHz, float modDepth, int carrierWaveId) {
-  if (voice < 0 || voice >= NUM_VOICES) return;
+void NoteOnVoice(int voice, float carrier_hz, float mod_hz, float mod_depth, int carrier_wave_id) {
+  if (voice < 0 || voice >= numVoices) return;
 
   // Packets without a waveform field keep whatever source is active
-  int waveId = (carrierWaveId >= 0) ? carrierWaveId : currentCarrierWaveId; 
+  int wave_id = (carrier_wave_id >= 0) ? carrier_wave_id : current_carrier_wave_id; 
 
   // In both modes the carriers AND wavetables gets a frequency (and amplitude)
   // Bc. through that we can enable mid-note mode switching and it does not cost much
-  carriers[voice]->frequency(carrierHz);
+  carriers[voice]->frequency(carrier_hz);
   carriers[voice]->amplitude(1.0f);
-  wavetables[voice]->setFrequency(carrierHz);
+  wavetables[voice]->SetFrequency(carrier_hz);
 
   // Mode: Wavetable Synth 
-  if (waveId == CARRIER_WAVE_WAVETABLE) {
+  if (wave_id == carrierWaveWavetable) {
     // In wavetable mode, the mod depth positions the morph between waveforms
-    wavetables[voice]->setMorph(modDepth);
-    modFadeActive[voice] = false;
-    targetModDepth[voice] = 0.0f;
+    wavetables[voice]->SetMorph(mod_depth);
+    mod_fade_active[voice] = false;
+    target_mod_depth[voice] = 0.0f;
     modulators[voice]->amplitude(0.0f);
   } 
   // Mode: FM Synth  
   else {
-    bool fmOff = modHz < THRESHOLD_MOD_FM_OFF;
-    modulators[voice]->frequency(fmOff ? 20.0f : modHz); // 20Hz is the default value for fmOff mode
+    bool fm_off = mod_hz < thresholdModFmOff;
+    modulators[voice]->frequency(fm_off ? 20.0f : mod_hz); // 20Hz is the default value for fm_off mode
     
-    if (fmOff) {
-      modFadeActive[voice] = false;
-      targetModDepth[voice] = 0.0f;
+    if (fm_off) {
+      mod_fade_active[voice] = false;
+      target_mod_depth[voice] = 0.0f;
       modulators[voice]->amplitude(0.0f);
-    } else if (!voiceActive[voice]) {
-      applyModDepth(voice, modDepth, true);
+    } else if (!voice_active[voice]) {
+      ApplyModDepth(voice, mod_depth, true);
     } else {
-      applyModDepth(voice, modDepth, false);
+      ApplyModDepth(voice, mod_depth, false);
     }
   }
 
-  if (!voiceActive[voice]) {
-    prepareAmpForNote();
+  if (!voice_active[voice]) {
+    PrepareAmpForNote();
     envelopes[voice]->noteOn();
-    voiceActive[voice] = true;
+    voice_active[voice] = true;
   }
-  voiceReleaseUntilMs[voice] = 0;
-  updateVoiceMixGains();
+  voice_release_until_ms[voice] = 0;
+  UpdateVoiceMixGains();
 }
 
-void noteOffVoice(int voice) {
-  if (voice < 0 || voice >= NUM_VOICES) return;
-  if (!voiceActive[voice]) return;
+void NoteOffVoice(int voice) {
+  if (voice < 0 || voice >= numVoices) return;
+  if (!voice_active[voice]) return;
 
   envelopes[voice]->noteOff();
-  voiceActive[voice] = false;
-  voiceReleaseUntilMs[voice] = millis() + (unsigned long)ENVELOPE_RELEASE_MS;
-  modFadeActive[voice] = false;
-  targetModDepth[voice] = 0.0f;
+  voice_active[voice] = false;
+  voice_release_until_ms[voice] = millis() + (unsigned long)envelopeReleaseMs;
+  mod_fade_active[voice] = false;
+  target_mod_depth[voice] = 0.0f;
   modulators[voice]->amplitude(0.0f);
-  updateVoiceMixGains();
+  UpdateVoiceMixGains();
 
-  if (countActiveVoices() == 0) {
-    scheduleAmpMuteAfterRelease();
+  if (CountActiveVoices() == 0) {
+    ScheduleAmpMuteAfterRelease();
   }
 }
 
-void allNotesOff() {
-  unsigned long until = millis() + (unsigned long)ENVELOPE_RELEASE_MS;
-  for (int i = 0; i < NUM_VOICES; i++) {
-    if (voiceActive[i]) {
+void AllNotesOff() {
+  unsigned long until = millis() + (unsigned long)envelopeReleaseMs;
+  for (int i = 0; i < numVoices; i++) {
+    if (voice_active[i]) {
       envelopes[i]->noteOff();
-      voiceActive[i] = false;
-      voiceReleaseUntilMs[i] = until;
-      modFadeActive[i] = false;
-      targetModDepth[i] = 0.0f;
+      voice_active[i] = false;
+      voice_release_until_ms[i] = until;
+      mod_fade_active[i] = false;
+      target_mod_depth[i] = 0.0f;
       modulators[i]->amplitude(0.0f);
     }
   }
-  updateVoiceMixGains();
-  scheduleAmpMuteAfterRelease();
+  UpdateVoiceMixGains();
+  ScheduleAmpMuteAfterRelease();
 }
 
 void setup() {
-  pinMode(AMP_SD_PIN, OUTPUT);
-  setAmpEnabled(false);
+  pinMode(ampSdPin, OUTPUT);
+  SetAmpEnabled(false);
 
   AudioMemory(120);
   Serial.begin(115200);
 
-  for (int i = 0; i < NUM_VOICES; i++) {
+  for (int i = 0; i < numVoices; i++) {
     modulators[i]->frequency(20.0f);
     modulators[i]->amplitude(0.0f);
-    carriers[i]->begin(currentCarrierWave);
-    carriers[i]->frequencyModulation(CARRIER_FM_OCTAVES);
+    carriers[i]->begin(current_carrier_wave);
+    carriers[i]->frequencyModulation(carrierFmOctaves);
     carriers[i]->frequency(440.0f);
     carriers[i]->amplitude(0.0f);
 
     // Add:
-    wavetables[i]->loadTable(customWavetable, N_WAVEFORMS);
+    wavetables[i]->LoadTable(customWavetable, nWaveforms);
 
     // Add:
-    sourceMixers[i]->gain(0, 1.0f);
-    sourceMixers[i]->gain(1, 0.0f);
+    source_mixers[i]->gain(0, 1.0f);
+    source_mixers[i]->gain(1, 0.0f);
 
-    envelopes[i]->attack(ENVELOPE_ATTACK_MS);
+    envelopes[i]->attack(envelopeAttackMs);
     envelopes[i]->decay(0.0f);
     envelopes[i]->sustain(1.0f);
-    envelopes[i]->release(ENVELOPE_RELEASE_MS);
+    envelopes[i]->release(envelopeReleaseMs);
   }
 
-  updateVoiceMixGains();
-  sumMixer.gain(0, 1.0f);
-  sumMixer.gain(1, 1.0f);
-  sumMixer.gain(2, 0.0f);
-  sumMixer.gain(3, 0.0f);
+  UpdateVoiceMixGains();
+  sum_mixer.gain(0, 1.0f);
+  sum_mixer.gain(1, 1.0f);
+  sum_mixer.gain(2, 0.0f);
+  sum_mixer.gain(3, 0.0f);
 
   // Global filter: how many octaves a full-scale LFO signal shifts the cutoff.
-  globalFilter.octaveControl(FILTER_CONTROL_OCTAVES);
-  applyFilter(FILTER_DEFAULT_CUTOFF_HZ, FILTER_DEFAULT_Q);
+  global_filter.octaveControl(filterControlOctaves);
+  ApplyFilter(filterDefaultCutoffHz, filterDefaultQ);
 
   // Global LFO: sine in RAM until the GUI uploads a table; depth 0 until L,... arrives.
-  fillLfoSine(lfoBuf[0]);
-  memcpy(lfoBuf[1], lfoBuf[0], sizeof(lfoBuf[0]));
-  lfoPlay = 0;
-  applyLfoTable();
-  applyLfo(LFO_DEFAULT_RATE_HZ, LFO_DEFAULT_DEPTH);
+  FillLfoSine(lfo_buf[0]);
+  memcpy(lfo_buf[1], lfo_buf[0], sizeof(lfo_buf[0]));
+  lfo_play = 0;
+  ApplyLfoTable();
+  ApplyLfo(lfoDefaultRateHz, lfoDefaultDepth);
 
-  setOutputVolume(0.0f);
-  delay(AMP_BOOT_MUTE_MS);
+  SetOutputVolume(0.0f);
+  delay(ampBootMuteMs);
 }
 
 void loop() {
-  updateModulatorFades();
-  updateAmpMuteSchedule();
-  updateVoiceMixGains();
+  UpdateModulatorFades();
+  UpdateAmpMuteSchedule();
+  UpdateVoiceMixGains();
 
   if (Serial.available() > 0) {
-    String inputString = Serial.readStringUntil('\n');
-    inputString.trim();
-    if (inputString.length() == 0) {
+    String input_string = Serial.readStringUntil('\n');
+    input_string.trim();
+    if (input_string.length() == 0) {
       return;
     }
 
     // LFO wavetable chunk: "W,offset,count,v0,...,vN-1" (int16 samples into RAM).
-    if (inputString.startsWith("W,")) {
-      applyLfoTableChunk(inputString);
+    if (input_string.startsWith("W,")) {
+      ApplyLfoTableChunk(input_string);
       return;
     }
 
@@ -582,97 +572,97 @@ void loop() {
     //   cutoff  = filter cutoff in Hz
     //   res     = filter resonance (Q)
     // Handled here, before the per-voice note logic, because it is a global command.
-    if (inputString.startsWith("L,")) {
+    if (input_string.startsWith("L,")) {
       int lc[4];
-      int lcCount = 0;
-      for (unsigned int i = 0; i < inputString.length() && lcCount < 4; i++) {
-        if (inputString.charAt(i) == ',') {
-          lc[lcCount++] = (int)i;
+      int lc_count = 0;
+      for (unsigned int i = 0; i < input_string.length() && lc_count < 4; i++) {
+        if (input_string.charAt(i) == ',') {
+          lc[lc_count++] = (int)i;
         }
       }
-      if (lcCount == 4) {
-        float lfoRate = inputString.substring(lc[0] + 1, lc[1]).toFloat();
-        float lfoDepth = inputString.substring(lc[1] + 1, lc[2]).toFloat() / 100.0f;
-        float filterCutoff = inputString.substring(lc[2] + 1, lc[3]).toFloat();
-        float filterQ = inputString.substring(lc[3] + 1).toFloat();
-        applyLfo(lfoRate, lfoDepth);
-        applyFilter(filterCutoff, filterQ);
+      if (lc_count == 4) {
+        float lfo_rate = input_string.substring(lc[0] + 1, lc[1]).toFloat();
+        float lfo_depth = input_string.substring(lc[1] + 1, lc[2]).toFloat() / 100.0f;
+        float filter_cutoff = input_string.substring(lc[2] + 1, lc[3]).toFloat();
+        float filter_q = input_string.substring(lc[3] + 1).toFloat();
+        ApplyLfo(lfo_rate, lfo_depth);
+        ApplyFilter(filter_cutoff, filter_q);
       }
       return;
     }
 
     int commas[5];
-    int commaCount = 0;
-    for (unsigned int i = 0; i < inputString.length() && commaCount < 5; i++) {
-      if (inputString.charAt(i) == ',') {
-        commas[commaCount++] = (int)i;
+    int comma_count = 0;
+    for (unsigned int i = 0; i < input_string.length() && comma_count < 5; i++) {
+      if (input_string.charAt(i) == ',') {
+        commas[comma_count++] = (int)i;
       }
     }
 
-    int voiceId = 0;
-    float inputCarrierFreq = 0.0f;
-    float inputModFreq = 0.0f;
-    float targetAmplitude = 0.0f;
-    float modDepth = 0.0f;
-    int carrierWaveId = -1; // -1 = Let waveform unchanged
+    int voice_id = 0;
+    float input_carrier_freq = 0.0f;
+    float input_mod_freq = 0.0f;
+    float target_amplitude = 0.0f;
+    float mod_depth = 0.0f;
+    int carrier_wave_id = -1; // -1 = Let waveform unchanged
 
-    if (commaCount == 5) {
-      voiceId = inputString.substring(0, commas[0]).toInt();
-      inputCarrierFreq = clampValue(inputString.substring(commas[0] + 1, commas[1]).toFloat(), MAX_CARRIER_HZ);
-      inputModFreq = clampValue(inputString.substring(commas[1] + 1, commas[2]).toFloat(), MAX_MODULATOR_HZ);
-      targetAmplitude = clampValue(inputString.substring(commas[2] + 1, commas[3]).toFloat() / 100.0f, MAX_OUTPUT_AMPLITUDE);
-      modDepth = clampValue(inputString.substring(commas[3] + 1, commas[4]).toFloat() / 100.0f, MAX_MOD_DEPTH);
+    if (comma_count == 5) {
+      voice_id = input_string.substring(0, commas[0]).toInt();
+      input_carrier_freq = ClampValue(input_string.substring(commas[0] + 1, commas[1]).toFloat(), maxCarrierHz);
+      input_mod_freq = ClampValue(input_string.substring(commas[1] + 1, commas[2]).toFloat(), maxModulatorHz);
+      target_amplitude = ClampValue(input_string.substring(commas[2] + 1, commas[3]).toFloat() / 100.0f, maxOutputAmplitude);
+      mod_depth = ClampValue(input_string.substring(commas[3] + 1, commas[4]).toFloat() / 100.0f, maxModDepth);
       /* Remove:
-      carrierWave = carrierWaveformFromId(inputString.substring(commas[4] + 1).toInt());
+      carrier_wave = CarrierWaveformFromId(input_string.substring(commas[4] + 1).toInt());
       */
       // Add: 
-      carrierWaveId = inputString.substring(commas[4] + 1).toInt();
-    } else if (commaCount == 4) {
-      voiceId = inputString.substring(0, commas[0]).toInt();
-      inputCarrierFreq = clampValue(inputString.substring(commas[0] + 1, commas[1]).toFloat(), MAX_CARRIER_HZ);
-      inputModFreq = clampValue(inputString.substring(commas[1] + 1, commas[2]).toFloat(), MAX_MODULATOR_HZ);
-      targetAmplitude = clampValue(inputString.substring(commas[2] + 1, commas[3]).toFloat() / 100.0f, MAX_OUTPUT_AMPLITUDE);
-      modDepth = clampValue(inputString.substring(commas[3] + 1).toFloat() / 100.0f, MAX_MOD_DEPTH);
-    } else if (commaCount == 3) {
-      voiceId = 0;
-      inputCarrierFreq = clampValue(inputString.substring(0, commas[0]).toFloat(), MAX_CARRIER_HZ);
-      inputModFreq = clampValue(inputString.substring(commas[0] + 1, commas[1]).toFloat(), MAX_MODULATOR_HZ);
-      targetAmplitude = clampValue(inputString.substring(commas[1] + 1, commas[2]).toFloat() / 100.0f, MAX_OUTPUT_AMPLITUDE);
-      modDepth = clampValue(inputString.substring(commas[2] + 1).toFloat() / 100.0f, MAX_MOD_DEPTH);
-      for (int i = 1; i < NUM_VOICES; i++) {
-        noteOffVoice(i);
+      carrier_wave_id = input_string.substring(commas[4] + 1).toInt();
+    } else if (comma_count == 4) {
+      voice_id = input_string.substring(0, commas[0]).toInt();
+      input_carrier_freq = ClampValue(input_string.substring(commas[0] + 1, commas[1]).toFloat(), maxCarrierHz);
+      input_mod_freq = ClampValue(input_string.substring(commas[1] + 1, commas[2]).toFloat(), maxModulatorHz);
+      target_amplitude = ClampValue(input_string.substring(commas[2] + 1, commas[3]).toFloat() / 100.0f, maxOutputAmplitude);
+      mod_depth = ClampValue(input_string.substring(commas[3] + 1).toFloat() / 100.0f, maxModDepth);
+    } else if (comma_count == 3) {
+      voice_id = 0;
+      input_carrier_freq = ClampValue(input_string.substring(0, commas[0]).toFloat(), maxCarrierHz);
+      input_mod_freq = ClampValue(input_string.substring(commas[0] + 1, commas[1]).toFloat(), maxModulatorHz);
+      target_amplitude = ClampValue(input_string.substring(commas[1] + 1, commas[2]).toFloat() / 100.0f, maxOutputAmplitude);
+      mod_depth = ClampValue(input_string.substring(commas[2] + 1).toFloat() / 100.0f, maxModDepth);
+      for (int i = 1; i < numVoices; i++) {
+        NoteOffVoice(i);
       }
     } else {
       return;
     }
 
-    setOutputVolume(targetAmplitude);
+    SetOutputVolume(target_amplitude);
 
-    if (voiceId < 0) {
-      allNotesOff();
+    if (voice_id < 0) {
+      AllNotesOff();
       return;
     }
 
-    if (voiceId >= NUM_VOICES) {
+    if (voice_id >= numVoices) {
       return;
     }
 
-    if (carrierWaveId >= 0) {
-      applyCarrierSource(carrierWaveId); 
-      if (carrierWaveId != CARRIER_WAVE_WAVETABLE) { 
-        applyCarrierWaveform(carrierWaveformFromId(carrierWaveId));
+    if (carrier_wave_id >= 0) {
+      ApplyCarrierSource(carrier_wave_id); 
+      if (carrier_wave_id != carrierWaveWavetable) { 
+        ApplyCarrierWaveform(CarrierWaveformFromId(carrier_wave_id));
       }
     }
 
-    if (inputCarrierFreq > 0.0f) {
+    if (input_carrier_freq > 0.0f) {
       /* Remove
-      noteOnVoice(voiceId, inputCarrierFreq, inputModFreq, modDepth);
+      NoteOnVoice(voice_id, input_carrier_freq, input_mod_freq, mod_depth);
       */
       // Add: 
-      noteOnVoice(voiceId, inputCarrierFreq, inputModFreq, modDepth, carrierWaveId);
+      NoteOnVoice(voice_id, input_carrier_freq, input_mod_freq, mod_depth, carrier_wave_id);
 
     } else {
-      noteOffVoice(voiceId);
+      NoteOffVoice(voice_id);
     }
   }
 }
