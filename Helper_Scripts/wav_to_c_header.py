@@ -29,7 +29,7 @@ rate, data = wavfile.read(wav_path)
 if data.ndim > 1:  # If the audio data is stereo, take only the left channel
     data = data[:, 0]  # [:, 0] means all rows, but only the first column
 
-# Define the frame size
+# Define the waveform size
 waveform_size = 2048
 
 # Get the length of the audio data
@@ -69,9 +69,9 @@ if input_wavetable_length % waveform_size != 0:
 # Therefore: Clip the values to the range of -32767 to 32767.
 samples = np.clip(np.round(data * 32767.0), -32767, 32767).astype(np.int16)
 
-# 5. Limit the number of frames to 64 for performance reasons (Teensy 4.1 has limited RAM)
+# 5. Limit the number of waveforms to 64 for performance reasons (Teensy 4.1 has limited RAM)
 n_waveforms = min(len(samples) // waveform_size, 64)
-#  Cut the samples from first frame to the frame at position n_waveforms * waveform_size
+#  Cut the samples from first waveform to the waveform at position n_waveforms * waveform_size
 samples = samples[: n_waveforms * waveform_size]
 
 # 6. Write the samples to a .h file

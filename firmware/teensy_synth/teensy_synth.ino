@@ -12,6 +12,10 @@ Audio graph:
   voices 4-7 -> voiceMixerB ─┴─> sumMixer -> volumeAmp -> I2S
 */
 
+// Synthesizer Code for Teensy 4.1
+// 
+// Implements synth architecture with Teensy Audio Library
+
 // Libraries
 #include <Arduino.h>
 #include <Audio.h>
@@ -441,7 +445,7 @@ void noteOnVoice(int voice, float carrierHz, float modHz, float modDepth, int ca
 
   // Mode: Wavetable Synth 
   if (waveId == CARRIER_WAVE_WAVETABLE) {
-    // In wavetable mode, the mod depth positions the morph between frames
+    // In wavetable mode, the mod depth positions the morph between waveforms
     wavetables[voice]->setMorph(modDepth);
     modFadeActive[voice] = false;
     targetModDepth[voice] = 0.0f;
