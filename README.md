@@ -152,7 +152,7 @@ To ensure *clangd* correctly resolves hardware libraries (like `<Arduino.h>`), f
    ```bash
    arduino-cli compile --fqbn teensy:avr:teensy41 --only-compilation-database firmware/teensy_synth
 2. Configure `clangd`:
-   Create a local file named exactly `.clangd` in your project root. You can use the provided .clangd.example.yaml as a template and adjust the paths to match your local toolchain installation.
+   Create a local file named exactly `.clangd` in your project root. You can use the provided `.clangd.example.yaml` as a template and adjust the paths to match your local toolchain installation.
 
 
 
