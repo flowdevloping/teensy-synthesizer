@@ -51,3 +51,7 @@ Test_Scripts/
 
 # Teensy Audio Library Setups
 Teensy_Audio_Library/
+
+# Clangd (c++ language server) configs
+.clangd
+compile_commands.json
