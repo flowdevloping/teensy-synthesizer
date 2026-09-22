@@ -135,7 +135,7 @@ requirements.txt        -   Python modules needed to use this application
 
 ## IDE Setup 
 
-### Language Server
+### Language Servers
 To enable features like code navigation, type tooltips and syntax checking, configure the following language servers in your IDE: 
 
 ### Python:
