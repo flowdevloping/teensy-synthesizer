@@ -25,8 +25,8 @@ Installation/Setup:
 
 ```powershell
 cd audio-module-project
-python -m venv .venv # Create virtual environment
-.\.venv\Scripts\activate # Activate virual environment
+python -m venv venv # Create virtual environment
+.\venv\Scripts\activate # Activate virual environment
 pip install -r requirements.txt # Install required python libraries 
 ```
 
@@ -41,8 +41,8 @@ python Scripts\app.py # Start the application
 Installation/Setup: 
 
 ```bash
-python3 -m venv .venv # Create virtual environment
-source .venv/bin/activate # Activate virtual environment
+python3 -m venv venv # Create virtual environment
+source venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries 
 ```
 
@@ -68,8 +68,8 @@ sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound
 Setup:
 
 ```bash
-python3 -m venv .venv # Create virtual environment
-source .venv/bin/activate # Activate virtual environment
+python3 -m venv venv # Create virtual environment
+source venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries
 ```
 
@@ -133,10 +133,36 @@ config.json             -   Config of latest GUI settings (to load last applied 
 requirements.txt        -   Python modules needed to use this application
 ```
 
+## IDE Setup 
+
+### Language Servers
+To enable features like code navigation, type tooltips and syntax checking, configure the following language servers in your IDE: 
+
+### Python:
+* **Language Server:** *Pylance* (or *Pyright*)
+
+In my case (VSCode) that worked right away. Python language servers were configurable straight forward in the settings.
+
+### C++
+* **Language Server:** *clangd*
+  
+To ensure *clangd* correctly resolves hardware libraries (like `<Arduino.h>`), follow these steps to set up your environment:
+1. **Generate the Compilation Database:**
+   Run the following command in your project root to generate the `compile_commands.json` file:
+   ```bash
+   arduino-cli compile --fqbn teensy:avr:teensy41 --only-compilation-database firmware/teensy_synth
+2. Configure `clangd`:
+   Create a local file named exactly `.clangd` in your project root. You can use the provided `.clangd.example.yaml` as a template and adjust the paths to match your local toolchain installation.
+
+
+
 
 ## More Notes
 
 Current Setup: Frequency Modulation (8 Note polyphonic input)
+
+![Teensy Audio Library Setup](visuals/FM-Setup-polyphone.png)
+
 - AudioSynthWaveform (Modulator) => Modulation frequency you can adjust in the GUI via the slider.
 - AudioSynthWaveform (Carrier) => Input through Local Device or MIDI-Keyboard. Frequencies are adjustable in the GUI.
 - AudioEffectEnvelope => DAHDSR (Delay, Attack, Hold, Decay, Sustain, Release) envelope
@@ -145,6 +171,7 @@ Current Setup: Frequency Modulation (8 Note polyphonic input)
 - AudioOutputI2S2 => Audio output (I2S on Port 2)
 
 For more detailed information, refer to the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
+
 
 
 ## Contact
