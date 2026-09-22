@@ -133,6 +133,29 @@ config.json             -   Config of latest GUI settings (to load last applied 
 requirements.txt        -   Python modules needed to use this application
 ```
 
+## IDE Setup 
+
+### Language Server
+To enable features like code navigation, type tooltips and syntax checking, configure the following language servers in your IDE: 
+
+### Python:
+* **Language Server:** *Pylance* (or *Pyright*)
+
+In my case (VSCode) that worked right away. Python language servers were configurable straight forward in the settings.
+
+### C++
+* **Language Server:** *clangd*
+  
+To ensure *clangd* correctly resolves hardware libraries (like `<Arduino.h>`), follow these steps to set up your environment:
+1. **Generate the Compilation Database:**
+   Run the following command in your project root to generate the `compile_commands.json` file:
+   ```bash
+   arduino-cli compile --fqbn teensy:avr:teensy41 --only-compilation-database firmware/teensy_synth
+2. Configure `clangd`:
+   Create a local file named exactly `.clangd` in your project root. You can use the provided .clangd.example.yaml as a template and adjust the paths to match your local toolchain installation.
+
+
+
 
 ## More Notes
 
