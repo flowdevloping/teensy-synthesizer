@@ -1,4 +1,4 @@
-"""Defines linguistic units of the custom conlang.
+"""Defines linguistic elements of the custom conlang.
 
 This script defines phonemes, lexemes and utterances which form the building blocks of the custom conlang.
 """

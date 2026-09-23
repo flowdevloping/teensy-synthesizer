@@ -26,6 +26,11 @@ from conlang_lexicon import (
     get_utterance,
     meanings_label,
 )
+from conlang_utterance_player import (
+    CONLANG_VOICE_ID,
+    UtterancePlayer,
+    compile_utterance,
+)
 from fm_utils import compute_modulator_hz
 from lfo_waveform import (
     LFO_PRESET_LABELS,
@@ -73,7 +78,6 @@ from setup_store import (
 )
 from synth_mode_presets import FM_PRESETS, apply_preset
 from synth_state import NOTE_MAPPING, PC_KEYBOARD_MAPPING, SynthState
-from utterance_player import CONLANG_VOICE_ID, UtterancePlayer, compile_utterance
 from waveforms import (
     WAVETABLE_CARRIER_WAVEFORM,
     carrier_waveform_from_label,
