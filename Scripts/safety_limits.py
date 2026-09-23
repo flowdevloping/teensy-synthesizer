@@ -1,11 +1,11 @@
 """Provides parameters and clamp-functions to keep values in certain safety thresholds."""
 
-DEFAULT_VOLUME_PCT = 10
+DEFAULT_VOLUME_PCT = 10  # Set volume to 10% by default on every startup
 MAX_VOLUME_PCT = 100
 MAX_MOD_DEPTH_PCT = 100
 
 MIN_CARRIER_HZ = 0.0
-MAX_CARRIER_HZ = 4000.0
+MAX_CARRIER_HZ = 12000.0
 
 MIN_MODULATOR_HZ = 0.0
 MAX_MODULATOR_HZ = 6000.0
@@ -20,7 +20,9 @@ LFO_DEFAULT_RATE_HZ = 2.0
 LFO_MAX_DEPTH_PCT = 100
 LFO_DEFAULT_DEPTH_PCT = 0
 
-FILTER_MIN_CUTOFF_HZ = 20.0
+FILTER_MIN_CUTOFF_HZ = (
+    20.0  # Below 20 Hz speaker membrane movement is strong, could damage the speaker
+)
 FILTER_MAX_CUTOFF_HZ = 12000.0
 FILTER_DEFAULT_CUTOFF_HZ = 12000.0
 

@@ -6,12 +6,20 @@ from pathlib import Path
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
 
+from lfo_waveform import (
+    DEFAULT_LFO_INTERP,
+    DEFAULT_LFO_PRESET,
+    default_lfo_points,
+    default_lfo_table,
+    lfo_state_from_mapping,
+)
 from safety_limits import (
     DEFAULT_VOLUME_PCT,
     FILTER_DEFAULT_CUTOFF_HZ,
     FILTER_DEFAULT_Q,
     LFO_DEFAULT_DEPTH_PCT,
     LFO_DEFAULT_RATE_HZ,
+    clamp_carrier_hz,
     clamp_filter_cutoff,
     clamp_filter_q,
     clamp_lfo_depth_pct,
@@ -21,21 +29,16 @@ from safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
-from lfo_waveform import (
-    DEFAULT_LFO_INTERP,
-    DEFAULT_LFO_PRESET,
-    default_lfo_points,
-    default_lfo_table,
-    lfo_state_from_mapping,
-)
 from waveforms import (
     DEFAULT_CARRIER_WAVEFORM,
     clamp_carrier_waveform,
 )
+
+
 @dataclass
 class AppConfig:
     """Configure the application settings.
-    
+
     Attributes:
         last_port (str | None): The last port used for the serial connection (e.g. 'COM6').
         last_midi_port (str | None): The last port used for the MIDI connection (e.g. 'APC Key 25 mk2 0').
@@ -86,7 +89,7 @@ class AppConfig:
 # Function to load the config from the config file defined in CONFIG_PATH
 def load_config() -> AppConfig:
     """Load the configuration from the config file defined in CONFIG_PATH and clamp safety critical values.
-    
+
     Returns:
         AppConfig: The validated configuration object.
     """
@@ -106,7 +109,7 @@ def load_config() -> AppConfig:
         last_midi_port=data.get("last_midi_port"),
         auto_reconnect=bool(data.get("auto_reconnect", True)),
         key_frequencies={
-            str(k): float(v)
+            str(k): clamp_carrier_hz(float(v))
             for k, v in (data.get("key_frequencies") or {}).items()
         },
         carrier_waveform=clamp_carrier_waveform(
@@ -115,16 +118,22 @@ def load_config() -> AppConfig:
         modulator_hz=clamp_modulator_hz(float(data.get("modulator_hz", 20.0))),
         modulator_mode=str(data.get("modulator_mode", "fixed")),
         modulator_ratio=clamp_modulator_ratio(float(data.get("modulator_ratio", 1.0))),
-        volume_pct=clamp_volume_pct(int(data.get("volume_pct", DEFAULT_VOLUME_PCT))),
+        volume_pct=clamp_volume_pct(DEFAULT_VOLUME_PCT),
         mod_depth_pct=clamp_mod_depth_pct(int(data.get("mod_depth_pct", 20))),
         lfo_rate_hz=clamp_lfo_rate(float(data.get("lfo_rate_hz", LFO_DEFAULT_RATE_HZ))),
-        lfo_depth_pct=clamp_lfo_depth_pct(int(data.get("lfo_depth_pct", LFO_DEFAULT_DEPTH_PCT))),
+        lfo_depth_pct=clamp_lfo_depth_pct(
+            int(data.get("lfo_depth_pct", LFO_DEFAULT_DEPTH_PCT))
+        ),
         lfo_preset=_lfo_preset,
         lfo_interp=_lfo_interp,
         lfo_points=_lfo_points,
         lfo_table=_lfo_table,
-        filter_cutoff_hz=clamp_filter_cutoff(float(data.get("filter_cutoff_hz", FILTER_DEFAULT_CUTOFF_HZ))),
-        filter_resonance=clamp_filter_q(float(data.get("filter_resonance", FILTER_DEFAULT_Q))),
+        filter_cutoff_hz=clamp_filter_cutoff(
+            float(data.get("filter_cutoff_hz", FILTER_DEFAULT_CUTOFF_HZ))
+        ),
+        filter_resonance=clamp_filter_q(
+            float(data.get("filter_resonance", FILTER_DEFAULT_Q))
+        ),
         active_preset=str(data.get("active_preset", "Standard")),
         local_audio_enabled=bool(data.get("local_audio_enabled", True)),
         last_setup_name=str(data.get("last_setup_name", "")),
@@ -134,7 +143,7 @@ def load_config() -> AppConfig:
 # Function to save the config to the config file defined in CONFIG_PATH
 def save_config(config: AppConfig) -> None:
     """Save the configuration to the config file defined in CONFIG_PATH.
-    
+
     Args:
         config (AppConfig): The configuration object.
     """
