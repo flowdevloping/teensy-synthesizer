@@ -1,3 +1,10 @@
+// Custom wavetable for the wavetable oscillator as array of int16_t samples.
+//
+// Can be created with Helper_Scripts/wav_to_c_header.py 
+//
+// Hardware & Protocol Dependencies:
+// - Must match AudioWavetable waveform_size_ (2048 samples per frame)
+
 #pragma once
 #include <Arduino.h>
 
