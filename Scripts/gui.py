@@ -53,6 +53,7 @@ from safety_limits import (
     MIN_MODULATOR_HZ,
     MIN_MODULATOR_RATIO,
     VOLUME_KEYBOARD_STEP,
+    clamp_carrier_hz,
     clamp_filter_cutoff,
     clamp_filter_q,
     clamp_lfo_depth_pct,
@@ -114,8 +115,13 @@ class SynthApp(ctk.CTk):
 
         self.config = load_config()
 
-        key_freqs = dict(PC_KEYBOARD_MAPPING)
-        key_freqs.update(self.config.key_frequencies)
+        key_freqs = {
+            key: clamp_carrier_hz(freq)
+            for key, freq in {
+                **PC_KEYBOARD_MAPPING,
+                **self.config.key_frequencies,
+            }.items()
+        }
 
         self.synth_state = SynthState(
             key_frequencies=key_freqs,
@@ -426,31 +432,16 @@ class SynthApp(ctk.CTk):
 
         ctk.CTkLabel(
             sound_header,
-            text="Sound Synthesis",
+            text="Sound Synthesis Configuration",
             font=ctk.CTkFont(size=15, weight="bold"),
         ).grid(row=0, column=0, sticky="w")
-
-        self.preset_buttons_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.preset_buttons_frame.grid(
-            row=2, column=0, padx=12, pady=(0, 4), sticky="ew"
-        )
-
-        self.fm_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.fm_panel_frame.grid(row=5, column=0, padx=12, pady=(0, 8), sticky="ew")
-        self.fm_panel_frame.grid_columnconfigure(0, weight=1)
-        self._build_fm_panel()
-
-        self.lfo_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        self.lfo_panel_frame.grid(row=6, column=0, padx=12, pady=(0, 8), sticky="ew")
-        self.lfo_panel_frame.grid_columnconfigure(0, weight=1)
-        self._build_lfo_panel()
 
         self.volume_label = ctk.CTkLabel(
             sound_frame, text=f"Volume: {self.synth_state.volume_pct} %"
         )
-        self.volume_label.grid(row=7, column=0, padx=12, pady=(8, 4), sticky="w")
+        self.volume_label.grid(row=1, column=0, padx=12, pady=(0, 4), sticky="w")
         volume_controls = ctk.CTkFrame(sound_frame, fg_color="transparent")
-        volume_controls.grid(row=8, column=0, padx=12, pady=(0, 8), sticky="ew")
+        volume_controls.grid(row=2, column=0, padx=12, pady=(0, 8), sticky="ew")
         volume_controls.grid_columnconfigure(0, weight=1)
         self.volume_slider = ctk.CTkSlider(
             volume_controls,
@@ -470,13 +461,49 @@ class SynthApp(ctk.CTk):
             self._on_volume_changed,
             decimals=0,
         )
-        self._show_preset_buttons()
+
+        preset_row = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        preset_row.grid(row=3, column=0, padx=12, pady=(0, 8), sticky="w")
+        ctk.CTkLabel(preset_row, text="Presets:").grid(
+            row=0, column=0, padx=(0, 8), sticky="w"
+        )
+        preset_names = list(FM_PRESETS)
+        active_preset = self.synth_state.active_preset
+        self.preset_var = ctk.StringVar(
+            value=active_preset if active_preset in FM_PRESETS else "Custom"
+        )
+        self.preset_menu = ctk.CTkOptionMenu(
+            preset_row,
+            variable=self.preset_var,
+            values=preset_names or ["No presets"],
+            command=self._on_preset_selected,
+            width=140,
+        )
+        self.preset_menu.grid(row=0, column=1, sticky="w")
+        self._sync_preset_menu()
+
+        self.fm_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        self.fm_panel_frame.grid(row=5, column=0, padx=12, pady=(0, 8), sticky="ew")
+        self.fm_panel_frame.grid_columnconfigure(0, weight=1)
+        self._build_fm_panel()
+
+        self.lfo_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        self.lfo_panel_frame.grid(row=6, column=0, padx=12, pady=(0, 8), sticky="ew")
+        self.lfo_panel_frame.grid_columnconfigure(0, weight=1)
+        self._build_lfo_panel()
+
+        self.filter_panel_frame = ctk.CTkFrame(sound_frame, fg_color="transparent")
+        self.filter_panel_frame.grid(row=7, column=0, padx=12, pady=(0, 8), sticky="ew")
+        self.filter_panel_frame.grid_columnconfigure(0, weight=1)
+        self._build_filter_panel()
 
         setup_frame = ctk.CTkFrame(controls_frame)
         setup_frame.grid(row=5, column=0, pady=(0, 8), sticky="ew")
         setup_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(
-            setup_frame, text="Setups", font=ctk.CTkFont(size=15, weight="bold")
+            setup_frame,
+            text="Save/Load Setups",
+            font=ctk.CTkFont(size=15, weight="bold"),
         ).grid(row=0, column=0, columnspan=3, padx=12, pady=(12, 6), sticky="w")
         ctk.CTkLabel(setup_frame, text="Load").grid(
             row=1, column=0, padx=12, pady=6, sticky="w"
@@ -514,10 +541,13 @@ class SynthApp(ctk.CTk):
 
         ctk.CTkLabel(
             sound_frame,
-            text=f"Safety limits: Volume max. {MAX_VOLUME_PCT} %",
+            text=(
+                "Control elements are partially limited to safety values. "
+                "Defined in safety_limits.py."
+            ),
             text_color="gray60",
             anchor="w",
-        ).grid(row=9, column=0, padx=12, pady=(0, 12), sticky="ew")
+        ).grid(row=8, column=0, padx=12, pady=(0, 12), sticky="ew")
 
         log_frame = ctk.CTkFrame(self)
         log_frame.grid(row=2, column=0, padx=16, pady=(0, 16), sticky="ew")
@@ -539,7 +569,9 @@ class SynthApp(ctk.CTk):
         header.grid(row=0, column=0, padx=12, pady=(12, 6), sticky="ew")
         header.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
-            header, text="Conlang", font=ctk.CTkFont(size=15, weight="bold")
+            header,
+            text="Conlang Functionality",
+            font=ctk.CTkFont(size=15, weight="bold"),
         ).grid(row=0, column=0, sticky="w")
 
         play_row = ctk.CTkFrame(conlang_frame, fg_color="transparent")
@@ -590,12 +622,6 @@ class SynthApp(ctk.CTk):
         self.conlang_status_label.grid(
             row=3, column=0, padx=12, pady=(0, 4), sticky="w"
         )
-        ctk.CTkLabel(
-            conlang_frame,
-            text="Timbre: Sine or Triangle with little FM fits the conlang character best.",
-            text_color="gray70",
-            anchor="w",
-        ).grid(row=4, column=0, padx=12, pady=(0, 12), sticky="w")
 
     def _build_fm_panel(self) -> None:
         fm = self.fm_panel_frame
@@ -643,30 +669,38 @@ class SynthApp(ctk.CTk):
             command=self._on_modulator_mode_changed,
         )
         self.modulator_mode_switch.grid(row=0, column=1, sticky="w")
+
+        self.modulator_hz_frame = ctk.CTkFrame(fm, fg_color="transparent")
+        self.modulator_hz_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.modulator_hz_frame.grid_columnconfigure(0, weight=1)
+        self.ratio_frame = ctk.CTkFrame(fm, fg_color="transparent")
+        self.ratio_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.ratio_frame.grid_columnconfigure(0, weight=1)
+
         self.modulator_label = ctk.CTkLabel(
-            fm,
+            self.modulator_hz_frame,
             text=f"Modulator: {self.synth_state.modulator_hz:.1f} Hz",
         )
         self.modulator_slider = ctk.CTkSlider(
-            fm,
+            self.modulator_hz_frame,
             from_=MIN_MODULATOR_HZ,
             to=MAX_MODULATOR_HZ,
             number_of_steps=int(MAX_MODULATOR_HZ - MIN_MODULATOR_HZ),
         )
         self.modulator_slider.set(self.synth_state.modulator_hz)
-        self.modulator_entry = ctk.CTkEntry(fm, width=70)
+        self.modulator_entry = ctk.CTkEntry(self.modulator_hz_frame, width=70)
         self.ratio_label = ctk.CTkLabel(
-            fm,
+            self.ratio_frame,
             text=f"Ratio (Modulator Frequency / Carrier Frequency): {self.synth_state.modulator_ratio:.2f}x",
         )
         self.ratio_slider = ctk.CTkSlider(
-            fm,
+            self.ratio_frame,
             from_=MIN_MODULATOR_RATIO,
             to=MAX_MODULATOR_RATIO,
             number_of_steps=int((MAX_MODULATOR_RATIO - MIN_MODULATOR_RATIO) * 100),
         )
         self.ratio_slider.set(self.synth_state.modulator_ratio)
-        self.ratio_entry = ctk.CTkEntry(fm, width=70)
+        self.ratio_entry = ctk.CTkEntry(self.ratio_frame, width=70)
         self.mod_depth_label = ctk.CTkLabel(
             fm,
             text=self._mod_depth_slider_label_text(),
@@ -680,13 +714,21 @@ class SynthApp(ctk.CTk):
         self.mod_depth_slider.set(self.synth_state.mod_depth_pct)
         self.mod_depth_entry = ctk.CTkEntry(fm, width=70)
         self._add_labeled_slider(
-            fm, 1, self.modulator_label, self.modulator_slider, self.modulator_entry
+            self.modulator_hz_frame,
+            0,
+            self.modulator_label,
+            self.modulator_slider,
+            self.modulator_entry,
         )
         self._add_labeled_slider(
-            fm, 2, self.ratio_label, self.ratio_slider, self.ratio_entry
+            self.ratio_frame,
+            0,
+            self.ratio_label,
+            self.ratio_slider,
+            self.ratio_entry,
         )
         self._add_labeled_slider(
-            fm, 3, self.mod_depth_label, self.mod_depth_slider, self.mod_depth_entry
+            fm, 1, self.mod_depth_label, self.mod_depth_slider, self.mod_depth_entry
         )
         self._wire_slider_entry(
             self.modulator_slider,
@@ -718,11 +760,15 @@ class SynthApp(ctk.CTk):
         lfo = self.lfo_panel_frame
         lfo.grid_columnconfigure(0, weight=1)
 
+        header = ctk.CTkFrame(lfo, fg_color="transparent")
+        header.grid(row=0, column=0, columnspan=2, pady=(4, 4), sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
-            lfo,
-            text="LFO → Filter Cutoff (global)",
+            header,
+            text="LFO",
             font=ctk.CTkFont(size=13, weight="bold"),
-        ).grid(row=0, column=0, columnspan=2, pady=(4, 4), sticky="w")
+        ).grid(row=0, column=0, sticky="w")
+        self._add_teensy_only_hint(header, "LFO", row=1)
 
         shape_row = ctk.CTkFrame(lfo, fg_color="transparent")
         shape_row.grid(row=1, column=0, columnspan=2, pady=(0, 6), sticky="ew")
@@ -792,46 +838,11 @@ class SynthApp(ctk.CTk):
         self.lfo_depth_slider.set(self.synth_state.lfo_depth_pct)
         self.lfo_depth_entry = ctk.CTkEntry(lfo, width=70)
 
-        self.filter_cutoff_label = ctk.CTkLabel(
-            lfo, text=f"Filter cutoff: {self.synth_state.filter_cutoff_hz:.0f} Hz"
-        )
-        self.filter_cutoff_slider = ctk.CTkSlider(
-            lfo, from_=FILTER_MIN_CUTOFF_HZ, to=FILTER_MAX_CUTOFF_HZ
-        )
-        self.filter_cutoff_slider.set(self.synth_state.filter_cutoff_hz)
-        self.filter_cutoff_entry = ctk.CTkEntry(lfo, width=70)
-
-        self.filter_resonance_label = ctk.CTkLabel(
-            lfo, text=f"Filter resonance (Q): {self.synth_state.filter_resonance:.2f}"
-        )
-        self.filter_resonance_slider = ctk.CTkSlider(
-            lfo,
-            from_=FILTER_MIN_Q,
-            to=FILTER_MAX_Q,
-            number_of_steps=int((FILTER_MAX_Q - FILTER_MIN_Q) * 100),
-        )
-        self.filter_resonance_slider.set(self.synth_state.filter_resonance)
-        self.filter_resonance_entry = ctk.CTkEntry(lfo, width=70)
-
         self._add_labeled_slider(
             lfo, 1, self.lfo_rate_label, self.lfo_rate_slider, self.lfo_rate_entry
         )
         self._add_labeled_slider(
             lfo, 2, self.lfo_depth_label, self.lfo_depth_slider, self.lfo_depth_entry
-        )
-        self._add_labeled_slider(
-            lfo,
-            3,
-            self.filter_cutoff_label,
-            self.filter_cutoff_slider,
-            self.filter_cutoff_entry,
-        )
-        self._add_labeled_slider(
-            lfo,
-            4,
-            self.filter_resonance_label,
-            self.filter_resonance_slider,
-            self.filter_resonance_entry,
         )
 
         self._wire_slider_entry(
@@ -850,6 +861,57 @@ class SynthApp(ctk.CTk):
             self._on_lfo_depth_changed,
             decimals=0,
         )
+
+    def _build_filter_panel(self) -> None:
+        panel = self.filter_panel_frame
+        panel.grid_columnconfigure(0, weight=1)
+
+        header = ctk.CTkFrame(panel, fg_color="transparent")
+        header.grid(row=0, column=0, columnspan=2, pady=(4, 4), sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            header,
+            text="Filter Cutoff",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).grid(row=0, column=0, sticky="w")
+        self._add_teensy_only_hint(header, "Filter Cutoff", row=1)
+
+        self.filter_cutoff_label = ctk.CTkLabel(
+            panel, text=f"Filter cutoff: {self.synth_state.filter_cutoff_hz:.0f} Hz"
+        )
+        self.filter_cutoff_slider = ctk.CTkSlider(
+            panel, from_=FILTER_MIN_CUTOFF_HZ, to=FILTER_MAX_CUTOFF_HZ
+        )
+        self.filter_cutoff_slider.set(self.synth_state.filter_cutoff_hz)
+        self.filter_cutoff_entry = ctk.CTkEntry(panel, width=70)
+
+        self.filter_resonance_label = ctk.CTkLabel(
+            panel, text=f"Filter resonance (Q): {self.synth_state.filter_resonance:.2f}"
+        )
+        self.filter_resonance_slider = ctk.CTkSlider(
+            panel,
+            from_=FILTER_MIN_Q,
+            to=FILTER_MAX_Q,
+            number_of_steps=int((FILTER_MAX_Q - FILTER_MIN_Q) * 100),
+        )
+        self.filter_resonance_slider.set(self.synth_state.filter_resonance)
+        self.filter_resonance_entry = ctk.CTkEntry(panel, width=70)
+
+        self._add_labeled_slider(
+            panel,
+            0,
+            self.filter_cutoff_label,
+            self.filter_cutoff_slider,
+            self.filter_cutoff_entry,
+        )
+        self._add_labeled_slider(
+            panel,
+            1,
+            self.filter_resonance_label,
+            self.filter_resonance_slider,
+            self.filter_resonance_entry,
+        )
+
         self._wire_slider_entry(
             self.filter_cutoff_slider,
             self.filter_cutoff_entry,
@@ -866,6 +928,23 @@ class SynthApp(ctk.CTk):
             self._on_filter_resonance_changed,
             decimals=2,
         )
+
+    def _add_teensy_only_hint(
+        self, parent: ctk.CTkFrame, feature: str, row: int
+    ) -> None:
+        ctk.CTkLabel(
+            parent,
+            text=(
+                f"{feature} only works while connected to Teensy and through "
+                "the audio modules speaker. Without connection to the audio module "
+                "a fallback option with pythons sounddevice library is used as synth, "
+                "to enable playing around with sounds on the local device."
+            ),
+            text_color="gray70",
+            anchor="w",
+            justify="left",
+            wraplength=720,
+        ).grid(row=row, column=0, pady=(3, 0), sticky="ew")
 
     def _add_labeled_slider(
         self,
@@ -951,22 +1030,25 @@ class SynthApp(ctk.CTk):
         for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
             canvas.bind(sequence, lambda _event: "break")
 
-    def _show_preset_buttons(self) -> None:
-        for child in self.preset_buttons_frame.winfo_children():
-            child.destroy()
-        if FM_PRESETS:
-            self.preset_buttons_frame.grid()
-            for index, preset_name in enumerate(FM_PRESETS):
-                ctk.CTkButton(
-                    self.preset_buttons_frame,
-                    text=preset_name,
-                    width=90,
-                    command=lambda name=preset_name: self._apply_preset(name),
-                ).grid(row=index // 3, column=index % 3, padx=3, pady=2, sticky="ew")
-            for column in range(3):
-                self.preset_buttons_frame.grid_columnconfigure(column, weight=1)
-        else:
-            self.preset_buttons_frame.grid_remove()
+    def _sync_preset_menu(self) -> None:
+        names = list(FM_PRESETS)
+        if not names:
+            self.preset_menu.configure(values=["No presets"], state="disabled")
+            self.preset_var.set("No presets")
+            return
+        active = self.synth_state.active_preset
+        values = list(names)
+        if active not in FM_PRESETS:
+            values.append("Custom")
+            active = "Custom"
+        self.preset_menu.configure(values=values, state="normal")
+        self.preset_var.set(active)
+
+    def _on_preset_selected(self, name: str) -> None:
+        if name == "Custom" or name not in FM_PRESETS:
+            self._sync_preset_menu()
+            return
+        self._apply_preset(name)
 
     def _refresh_setup_list(self) -> None:
         setups = list_setups()
@@ -1090,14 +1172,16 @@ class SynthApp(ctk.CTk):
         except ValueError:
             self._set_entry_text(entry, self.synth_state.key_frequencies[key], 2)
             return
-        value = max(20.0, min(20000.0, value))
+        value = clamp_carrier_hz(value)
         self.synth_state.key_frequencies[key] = value
         self._set_entry_text(entry, value, 2)
         self._note_buttons[key].configure(text=f"{key.upper()}\n{value:.2f} Hz")
         self._save_config()
 
     def _reset_key_frequencies(self) -> None:
-        self.synth_state.key_frequencies = dict(PC_KEYBOARD_MAPPING)
+        self.synth_state.key_frequencies = {
+            key: clamp_carrier_hz(freq) for key, freq in PC_KEYBOARD_MAPPING.items()
+        }
         for key, freq in self.synth_state.key_frequencies.items():
             entry = self._key_freq_entries.get(key)
             if entry is not None:
@@ -1310,22 +1394,15 @@ class SynthApp(ctk.CTk):
     def _set_modulator_mode_ui(self) -> None:
         is_ratio = self.synth_state.modulator_mode == "ratio"
         if is_ratio:
-            self.modulator_label.grid_remove()
-            self.modulator_slider.grid_remove()
-            self.modulator_entry.grid_remove()
-            self.ratio_label.grid()
-            self.ratio_slider.grid()
-            self.ratio_entry.grid()
+            self.modulator_hz_frame.grid_remove()
+            self.ratio_frame.grid()
         else:
-            self.ratio_label.grid_remove()
-            self.ratio_slider.grid_remove()
-            self.ratio_entry.grid_remove()
-            self.modulator_label.grid()
-            self.modulator_slider.grid()
-            self.modulator_entry.grid()
+            self.ratio_frame.grid_remove()
+            self.modulator_hz_frame.grid()
 
     def _mark_custom_preset(self) -> None:
         self.synth_state.active_preset = "Custom"
+        self._sync_preset_menu()
 
     def _apply_preset(self, preset_name: str) -> None:
         preset = FM_PRESETS.get(preset_name)
@@ -1357,7 +1434,7 @@ class SynthApp(ctk.CTk):
         self._sync_carrier_waveform_ui()
         self._sync_param_entries()
         self._set_modulator_mode_ui()
-        self._show_preset_buttons()
+        self._sync_preset_menu()
 
     def _sync_param_entries(self) -> None:
         self._set_entry_text(self.volume_entry, float(self.synth_state.volume_pct), 0)
@@ -1775,6 +1852,7 @@ class SynthApp(ctk.CTk):
 
     # Initially initiate playing a sound
     def _note_on(self, voice_id: str, frequency_hz: float) -> None:
+        frequency_hz = clamp_carrier_hz(frequency_hz)
         modulator = self._modulator_for_carrier(frequency_hz)
         stolen = self.synth_state.note_on(voice_id, frequency_hz, modulator)
         if stolen and self._local_audio_active():
@@ -1783,6 +1861,7 @@ class SynthApp(ctk.CTk):
         self._dispatch_voice_on(voice_id)
 
     def _retune_voice(self, voice_id: str, frequency_hz: float) -> None:
+        frequency_hz = clamp_carrier_hz(frequency_hz)
         modulator = self._modulator_for_carrier(frequency_hz)
         if not self.synth_state.retune(voice_id, frequency_hz, modulator):
             self._note_on(voice_id, frequency_hz)
