@@ -42,32 +42,12 @@ FM_PRESETS: dict[str, ModePreset] = {
             "modulator_ratio": 1.0,
         },
     ),
-    "Bass": ModePreset(
-        "Oscillating",
-        "oscillating",
-        {
-            "modulator_hz": 5.0,
-            "mod_depth_pct": 45,
-            "modulator_mode": "fixed",
-            "modulator_ratio": 1.0,
-        },
-    ),
     "Organ": ModePreset(
         "Organ",
         "high modulator frequency",
         {
             "modulator_hz": 300.0,
             "mod_depth_pct": 30,
-            "modulator_mode": "fixed",
-            "modulator_ratio": 1.0,
-        },
-    ),
-    "Clean": ModePreset(
-        "Ghost",
-        "ghostly",
-        {
-            "modulator_hz": 8.0,
-            "mod_depth_pct": 8,
             "modulator_mode": "fixed",
             "modulator_ratio": 1.0,
         },
