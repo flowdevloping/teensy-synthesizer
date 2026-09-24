@@ -109,6 +109,63 @@ While not being connected to the Audio Module, the python libraries `sounddevice
 Connect MIDI-Keyboard to your local device , then you will be able to connect it in the GUI indicated in the field `MIDI-Port`.
 
 
+## Conlang Functionality
+
+The GUI can play a small constructed language (conlang) of FM tones. Vocabulary lives in `Scripts/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
+
+### Building blocks
+
+Three dataclasses:
+
+- **Phoneme** — one sound. Current helpers: `_beep`, `_glide`, `_warble`.
+- **Lexeme** — a word, a sequence of phonemes (e.g. `hello`, `human`, `yes`, `no`).
+- **Utterance** — a phrase, a sequence of lexemes (e.g. `greet_human` = "Hallo, Mensch", `acknowledge` = "Verstanden").
+
+Define words in the `LEXEMES` dict:
+
+```python
+"hello": Lexeme(
+        "hello",
+        "Hallo",
+        (
+            _beep(1650, 55, 30),
+            _glide(1500, 2100, 110, 25),
+            _beep(1900, 60, 40),
+        ),
+    ),
+```
+
+Define phrases in the `UTTERANCES` dict, e.g. `"greet_human": Utterance("greet_human", "Hallo, Mensch", ("hello", "human"))`.
+
+### Phoneme parameters
+
+- `_beep(hz, duration_ms, gap_after_ms=30)` — steady tone
+- `_glide(start_hz, end_hz, duration_ms, gap_after_ms=30)` — frequency ramp
+- `_warble(hz, duration_ms, gap_after_ms=30)` — tone that oscillates around `hz`
+
+### Timing
+
+- `gap_after_ms` is silence after each phoneme (default 30 ms).
+- `WORD_GAP_MS` (120 ms) is extra silence between lexemes in an utterance, on top of `gap_after_ms`.
+- Glide and warble are stepped retunes every `GLIDE_STEP_MS` (16 ms).
+- Warble depth is `WARBLES_DEPTH_RATIO` (0.06): the frequency steps through `0`, `+6%`, `0`, `-6%` of the start frequency.
+
+### Playback
+
+```mermaid
+flowchart LR
+  utterance["Utterance lexeme ids"] --> compile["compile_utterance()"]
+  compile --> events["TimedEvents"]
+  events --> player["UtterancePlayer schedules via Tkinter after"]
+  player --> gui["gui.py callbacks"]
+  gui --> synth["note_on / retune / note_off on voice conlang:0"]
+```
+
+- `compile_utterance` turns lexeme ids into timed events (`note_on`, `retune`, `note_off`).
+- `UtterancePlayer` schedules those events; the GUI synth callbacks produce the audio.
+- Playback goes through the GUI callbacks wired in `gui.py`: `on_note_on` → `_note_on`, `on_retune` → `_retune_voice`, `on_note_off` → `_note_off`, all on voice `conlang:0`. `retune` keeps the tone sounding and only changes its frequency (used by glide and warble).
+
+
 ## Project Structure
 
 ```
@@ -116,6 +173,8 @@ exports/                -   Exported specs for Teensy (JSON + Markdown)
 Scripts/
   app.py                -   Application entry point
   gui.py                -   CustomTkinter GUI interface
+  conlang_lexicon.py    -   Phonemes, lexemes, utterances
+  conlang_utterance_player.py - Compile utterances into timed events and schedule playback
   engines/              -   FM engine and shared DSP helpers
   audio_engine.py       -   LocalAudioEngine (sounddevice stream + FmEngine)
   synth_mode_presets.py -   Presets for FM synthesis
