@@ -1,4 +1,6 @@
-"""Compiles Conlang utterances ('greet_human = hello + human', 'affirm = yes', 'alert = attention') and lexemes (list of phonemes) into timed synth events (note on, retune, note off) and plays them."""
+"""Compiles Conlang utterances ('greet_human = hello + human', 'affirm = yes', 'alert = attention')
+and lexemes (list of phonemes) into timed synth events (note on, retune, note off) and plays them.
+"""
 
 from __future__ import annotations
 
@@ -26,7 +28,6 @@ FreqFn = Callable[[float], None]
 VoidFn = Callable[[], None]
 
 
-# Data class representing a timed event (note on, retune, note off)
 @dataclass(frozen=True)
 class TimedEvent:
     """Data class representing a timed event (note on, retune, note off)."""
@@ -137,15 +138,23 @@ class UtterancePlayer:
         self._on_retune = on_retune
         self._on_note_off = on_note_off
         self._on_finished = on_finished
+        # List of scheduled events
         self._tokens: list[object] = []
         self._playing = False
 
     @property
     def is_playing(self) -> bool:
+        """Check if the utterance player is playing."""
         return self._playing
 
     def play(self, events: list[TimedEvent]) -> None:
-        """Play a list of timed events."""
+        """Schedule the list of timed events to play.
+
+        ... by appending the events to the _tokens list.
+
+        Args:
+            events (list[TimedEvent]): The list of timed events to play.
+        """
         self.stop()
         if not events:
             if self._on_finished is not None:
@@ -154,6 +163,9 @@ class UtterancePlayer:
 
         self._playing = True
         for event in events:
+            # _tokens: list of scheduled events
+            # self._schedule: function to schedule an event
+            # self._make_fire: function to fire an event
             self._tokens.append(
                 self._schedule(max(0, event.t_ms), self._make_fire(event))
             )

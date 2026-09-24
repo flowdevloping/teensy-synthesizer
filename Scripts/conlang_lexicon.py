@@ -126,9 +126,9 @@ LEXEMES: dict[str, Lexeme] = {
         "attention",
         "Achtung",
         (
-            _beep(2400, 35, 45),
-            _beep(2400, 35, 45),
-            _beep(3100, 90, 30),
+            _beep(500, 35, 45),
+            _beep(500, 35, 45),
+            _beep(500, 90, 30),
         ),
     ),
     "query": Lexeme(
@@ -224,7 +224,7 @@ def get_utterance(utterance_id: str) -> Utterance:
 def resolve_lexemes(lexeme_ids: list[str] | tuple[str, ...]) -> list[Lexeme]:
     """Resolve a list of lexeme ids to a list of lexemes.
 
-    Resolve a list of lexeme ids to a list of lexemes by calling the get_lexeme function for each lexeme id.
+    ...by calling the get_lexeme function for each lexeme id.
 
     Args:
         lexeme_ids (list[str] | tuple[str, ...]): The list of lexeme ids to resolve.

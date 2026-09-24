@@ -1864,6 +1864,7 @@ class SynthApp(ctk.CTk):
         self._refresh_display()
         self._dispatch_voice_on(voice_id)
 
+    # Sound resumes playing, frequency changes on the go.
     def _retune_voice(self, voice_id: str, frequency_hz: float) -> None:
         frequency_hz = clamp_carrier_hz(frequency_hz)
         modulator = self._modulator_for_carrier(frequency_hz)
