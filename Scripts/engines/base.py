@@ -83,7 +83,7 @@ def wrap_phase(phase: float) -> float:
     return phase
 
 
-# Single-cycle oscillator value for a phase of 0.0..1.0, shaped like the Teensy waveforms
+# Carrier waveform
 def waveform_sample(waveform: str, phase: float) -> float:
     if waveform == "saw":
         return 2.0 * phase - 1.0

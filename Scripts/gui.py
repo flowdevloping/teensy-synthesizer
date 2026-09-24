@@ -1687,6 +1687,7 @@ class SynthApp(ctk.CTk):
             return
 
         # If Teensy is connected, send 'play sound' message to Teensy
+        # Note: stolen is the voice_id of the voice that was previously playing, if any.
         if self.serial_client.is_connected:
             self.audio_engine.all_notes_off()
             # Try to play sound on Teensy (sending 'play sound' message to Teensy)

@@ -584,7 +584,7 @@ void setup() {
   delay(ampBootMuteMs);
 }
 
-// Service fades, amp mute, mixer gains, and parse serial commands.
+// Parse serial commands, update amp mute, mixer gains, and modulator fades.
 //
 // Commands:
 // - W,offset,count,value0,...,valueN-1: LFO wavetable chunk (int16 samples into RAM)
@@ -608,6 +608,7 @@ void loop() {
       return;
     }
 
+    // For LFO packages, we call 'comma_count' 'lc_count' and 'commas' 'lc'.
     if (input_string.startsWith("L,")) {
       int lc[4];
       int lc_count = 0;

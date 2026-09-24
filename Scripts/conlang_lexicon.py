@@ -91,60 +91,46 @@ LEXEMES: dict[str, Lexeme] = {
     "hello": Lexeme(
         "hello",
         "Hallo",
-        (
-            _beep(1650, 55, 30),
-            _glide(1500, 2100, 110, 25),
-            _beep(1900, 60, 40),
-        ),
+        (_glide(500, 700, 200, 50),),
     ),
     "human": Lexeme(
         "human",
         "Mensch",
         (
-            _beep(820, 90, 35),
-            _beep(720, 70, 25),
-            _glide(720, 1050, 130, 40),
+            _beep(600, 90, 35),
+            _beep(600, 70, 25),
+            _glide(600, 950, 130, 40),
         ),
     ),
     "yes": Lexeme(
         "yes",
         "Ja",
-        (
-            _beep(1700, 40, 20),
-            _glide(1750, 2300, 90, 30),
-        ),
+        (_beep(900, 200, 20),),
     ),
     "no": Lexeme(
         "no",
         "Nein",
-        (
-            _beep(1300, 80, 20),
-            _glide(1250, 520, 180, 40),
-        ),
+        (_warble(550, 400, 20),),
     ),
     "attention": Lexeme(
         "attention",
         "Achtung",
         (
-            _beep(500, 35, 45),
-            _beep(500, 35, 45),
-            _beep(500, 90, 30),
+            _beep(800, 100, 100),
+            _beep(800, 400, 30),
         ),
     ),
     "query": Lexeme(
         "query",
         "Nachfrage",
-        (
-            _beep(980, 50, 20),
-            _glide(1100, 2600, 240, 40),
-        ),
+        (_glide(700, 1000, 400, 20),),
     ),
     "ack": Lexeme(
         "ack",
         "Verstanden",
         (
-            _warble(1550, 140, 25),
-            _beep(1400, 70, 30),
+            _warble(1050, 140, 25),
+            _beep(900, 70, 30),
         ),
     ),
 }

@@ -111,7 +111,7 @@ Connect MIDI-Keyboard to your local device , then you will be able to connect it
 
 ## Conlang Functionality
 
-The GUI can play a small constructed language (conlang) of FM tones. Vocabulary lives in `Scripts/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
+A small constructed language (conlang) can be played. Vocabulary lives in `Scripts/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
 
 ### Building blocks
 
@@ -218,9 +218,9 @@ To ensure *clangd* correctly resolves hardware libraries (like `<Arduino.h>`), f
 
 ## More Notes
 
-Current Setup: Frequency Modulation (8 Note polyphonic input)
+Current Setup: 8 Voice polyphonic input.
 
-![Teensy Audio Library Setup](visuals/FM-Setup-polyphone.png)
+![Teensy Audio Library Setup](visuals/Synth.png)
 
 - AudioSynthWaveform (Modulator) => Modulation frequency you can adjust in the GUI via the slider.
 - AudioSynthWaveform (Carrier) => Input through Local Device or MIDI-Keyboard. Frequencies are adjustable in the GUI.
