@@ -1,6 +1,6 @@
 """This script contains utility functions for FM synthesis."""
 
-from safety_limits import (
+from synth.safety_limits import (
     clamp_modulator_for_carrier,
     clamp_modulator_hz,
 )

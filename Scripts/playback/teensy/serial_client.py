@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import serial
-from protocol import (
+from playback.teensy.protocol import (
     build_all_notes_off,
     build_lfo_packet,
     build_lfo_waveform_packets,

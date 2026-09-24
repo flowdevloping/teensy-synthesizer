@@ -4,16 +4,16 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
+CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config.json"
 
-from lfo_waveform import (
+from synth.lfo_waveform import (
     DEFAULT_LFO_INTERP,
     DEFAULT_LFO_PRESET,
     default_lfo_points,
     default_lfo_table,
     lfo_state_from_mapping,
 )
-from safety_limits import (
+from synth.safety_limits import (
     DEFAULT_VOLUME_PCT,
     FILTER_DEFAULT_CUTOFF_HZ,
     FILTER_DEFAULT_Q,
@@ -29,7 +29,7 @@ from safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
-from waveforms import (
+from synth.waveforms import (
     DEFAULT_CARRIER_WAVEFORM,
     clamp_carrier_waveform,
 )

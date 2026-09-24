@@ -9,8 +9,8 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-from engines.base import BLOCK_SIZE, CHANNELS, SAMPLE_RATE
-from engines.fm_engine import FmEngine
+from playback.local.engines.base import BLOCK_SIZE, CHANNELS, SAMPLE_RATE
+from playback.local.engines.fm_engine import FmEngine
 
 
 class LocalAudioEngine:

@@ -16,9 +16,9 @@ from datetime import datetime
 from tkinter import Canvas, Entry, Text
 
 import customtkinter as ctk  # Python UI library based on tkinter (standard Python GUI toolkit)
-from audio_engine import LocalAudioEngine
-from config_store import load_config, save_config
-from conlang_lexicon import (
+from playback.local.audio_engine import LocalAudioEngine
+from storage.config_store import load_config, save_config
+from conlang.conlang_lexicon import (
     LEXEME_ORDER,
     LEXEMES,
     UTTERANCE_ORDER,
@@ -26,13 +26,13 @@ from conlang_lexicon import (
     get_utterance,
     meanings_label,
 )
-from conlang_utterance_player import (
+from conlang.conlang_utterance_player import (
     CONLANG_VOICE_ID,
     UtterancePlayer,
     compile_utterance,
 )
-from fm_utils import compute_modulator_hz
-from lfo_waveform import (
+from synth.fm_utils import compute_modulator_hz
+from synth.lfo_waveform import (
     LFO_PRESET_LABELS,
     LFO_PRESET_ORDER,
     LFO_WAVETABLE_SIZE,
@@ -41,8 +41,8 @@ from lfo_waveform import (
     point_indices,
     table_to_int16,
 )
-from midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
-from safety_limits import (
+from ui.midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
+from synth.safety_limits import (
     DEFAULT_VOLUME_PCT,
     FILTER_MAX_CUTOFF_HZ,
     FILTER_MAX_Q,
@@ -68,17 +68,17 @@ from safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
-from serial_client import SerialClient, WatchdogCallbacks, list_com_ports
-from setup_store import (
+from playback.teensy.serial_client import SerialClient, WatchdogCallbacks, list_com_ports
+from storage.setup_store import (
     SynthSetup,
     export_user_spec,
     list_setups,
     load_setup,
     save_setup,
 )
-from synth_mode_presets import FM_PRESETS, apply_preset
-from synth_state import NOTE_MAPPING, PC_KEYBOARD_MAPPING, SynthState
-from waveforms import (
+from synth.synth_mode_presets import FM_PRESETS, apply_preset
+from synth.synth_state import NOTE_MAPPING, PC_KEYBOARD_MAPPING, SynthState
+from synth.waveforms import (
     WAVETABLE_CARRIER_WAVEFORM,
     carrier_waveform_from_label,
     carrier_waveform_label,

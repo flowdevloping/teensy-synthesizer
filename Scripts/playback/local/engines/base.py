@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from safety_limits import (
+from synth.safety_limits import (
     ENVELOPE_ATTACK_MS,
     ENVELOPE_RELEASE_MS,
     FIRMWARE_MAX_AMPLITUDE,

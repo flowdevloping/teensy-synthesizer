@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import mido
-from safety_limits import clamp_carrier_hz
+from synth.safety_limits import clamp_carrier_hz
 
 
 # @dataclass creates automatically __init__ and __repr__, therefore we don't need to define them manually.

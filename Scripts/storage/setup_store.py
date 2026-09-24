@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-SETUPS_DIR = Path(__file__).resolve().parent.parent / "setups"
-EXPORTS_DIR = Path(__file__).resolve().parent.parent / "exports"
+SETUPS_DIR = Path(__file__).resolve().parent.parent.parent / "setups"
+EXPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "exports"
 
 
 # Data class for a synth setup

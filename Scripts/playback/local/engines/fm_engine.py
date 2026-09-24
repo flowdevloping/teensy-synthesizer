@@ -6,7 +6,7 @@ import math
 import threading
 from dataclasses import dataclass, field
 
-from safety_limits import (
+from synth.safety_limits import (
     FIRMWARE_MAX_AMPLITUDE,
     FIRMWARE_MAX_MOD_DEPTH,
     MODULATOR_FADE_MS,
@@ -15,10 +15,10 @@ from safety_limits import (
     clamp_modulator_hz,
     clamp_volume_pct,
 )
-from synth_state import MAX_VOICES
-from waveforms import DEFAULT_CARRIER_WAVEFORM, clamp_carrier_waveform
+from synth.synth_state import MAX_VOICES
+from synth.waveforms import DEFAULT_CARRIER_WAVEFORM, clamp_carrier_waveform
 
-from engines.base import (
+from playback.local.engines.base import (
     VoiceEnvelope,
     envelope_increments,
     soft_clip,

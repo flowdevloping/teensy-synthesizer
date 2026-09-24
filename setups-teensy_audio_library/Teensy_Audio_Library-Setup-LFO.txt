@@ -1,0 +1,102 @@
+#include <Audio.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SerialFlash.h>
+
+// GUItool: begin automatically generated code
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_0; //xy=660.4285278320312,95
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_2; //xy=659.4285278320312,450
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_1; //xy=663.4285278320312,264
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_3; //xy=663.4285278320312,652
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_6; //xy=663.4285278320312,1266
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_4; //xy=665.4285278320312,912
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_5; //xy=667.4285278320312,1080
+AudioSynthWaveform       AudioSynthWaveform_(modulator)_7; //xy=667.4285278320312,1468
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_2; //xy=1038.4285278320312,450
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_1; //xy=1042.4285278320312,264
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_3; //xy=1042.4285278320312,652
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_0; //xy=1046.4285278320312,90
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_6; //xy=1042.4285278320312,1267
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_4; //xy=1044.4285278320312,912
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_5; //xy=1046.4285278320312,1081
+AudioSynthWaveformModulated AudioSynthWaveformModulated_(carrier)_7; //xy=1046.4285278320312,1469
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_2; //xy=1051.4285278320312,524
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_0; //xy=1053.4285278320312,169
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_1; //xy=1055.4285278320312,338
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_3; //xy=1055.4285278320312,726
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_4; //xy=1057.4285278320312,986
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_6; //xy=1056.4285278320312,1341
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_5; //xy=1060.4285278320312,1155
+AudioSynthWavetable      AudioSynthSerumWavetable_(wavetable)_7; //xy=1060.4285278320312,1543
+AudioMixer4              AudioMixer4_(sourceMixer)_0; //xy=1415.4285278320312,111
+AudioMixer4              AudioMixer4_(sourceMixer)_ 2; //xy=1414.4285278320312,466
+AudioMixer4              AudioMixer4_(sourceMixer)_ 1; //xy=1418.4285278320312,280
+AudioMixer4              AudioMixer4_(sourceMixer)_ 3; //xy=1418.4285278320312,668
+AudioMixer4              AudioMixer4_(sourceMixer)_ 6; //xy=1418.4285278320312,1283
+AudioMixer4              AudioMixer4_(sourceMixer)_ 4; //xy=1420.4285278320312,928
+AudioMixer4              AudioMixer4_(sourceMixer)_ 5; //xy=1422.4285278320312,1097
+AudioMixer4              AudioMixer4_(sourceMixer)_ 7; //xy=1422.4285278320312,1485
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_0; //xy=1789.4285278320312,119
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_2; //xy=1788.4285278320312,474
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_1; //xy=1792.4285278320312,288
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_3; //xy=1792.4285278320312,676
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_4; //xy=1794.4285278320312,936
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_5; //xy=1796.4285278320312,1105
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_7; //xy=1796.4285278320312,1493
+AudioEffectEnvelope      AudioEffectEnvelope_(envelope)_6; //xy=1800.9999542236328,1289.5715169906616
+AudioMixer4              AudioMixer4_(voiceMixer)_A; //xy=2157.4285278320312,393
+AudioMixer4              AudioMixer4_(voiceMixer)_B; //xy=2163.4285278320312,1225
+AudioMixer4              AudioMixer4_(sumMixer); //xy=2461.428741455078,801.3333549499512
+AudioSynthWaveform       AudioLfo_(lfo);      //xy=2497.857208251953,960.8505811691284
+AudioFilterStateVariable AudioFilterStateVariable_(globalFilter);        //xy=2842.891403198242,843.9456214904785
+AudioAmplifier           AudioAmplifier_(volumeAmp); //xy=3203.905433654785,849.619288444519
+AudioOutputI2S2          AudioOutput12S2_(i2s2_output); //xy=3554.5719680786133,853.9525814056396
+AudioConnection          patchCord1(AudioSynthWaveform_(modulator)_0, 0, AudioSynthWaveformModulated_(carrier)_0, 0);
+AudioConnection          patchCord2(AudioSynthWaveform_(modulator)_2, 0, AudioSynthWaveformModulated_(carrier)_2, 0);
+AudioConnection          patchCord3(AudioSynthWaveform_(modulator)_1, 0, AudioSynthWaveformModulated_(carrier)_1, 0);
+AudioConnection          patchCord4(AudioSynthWaveform_(modulator)_3, 0, AudioSynthWaveformModulated_(carrier)_3, 0);
+AudioConnection          patchCord5(AudioSynthWaveform_(modulator)_6, 0, AudioSynthWaveformModulated_(carrier)_6, 0);
+AudioConnection          patchCord6(AudioSynthWaveform_(modulator)_4, 0, AudioSynthWaveformModulated_(carrier)_4, 0);
+AudioConnection          patchCord7(AudioSynthWaveform_(modulator)_5, 0, AudioSynthWaveformModulated_(carrier)_5, 0);
+AudioConnection          patchCord8(AudioSynthWaveform_(modulator)_7, 0, AudioSynthWaveformModulated_(carrier)_7, 0);
+AudioConnection          patchCord9(AudioSynthWaveformModulated_(carrier)_2, 0, AudioMixer4_(sourceMixer)_ 2, 0);
+AudioConnection          patchCord10(AudioSynthWaveformModulated_(carrier)_1, 0, AudioMixer4_(sourceMixer)_ 1, 0);
+AudioConnection          patchCord11(AudioSynthWaveformModulated_(carrier)_3, 0, AudioMixer4_(sourceMixer)_ 3, 0);
+AudioConnection          patchCord12(AudioSynthWaveformModulated_(carrier)_0, 0, AudioMixer4_(sourceMixer)_0, 0);
+AudioConnection          patchCord13(AudioSynthWaveformModulated_(carrier)_6, 0, AudioMixer4_(sourceMixer)_ 6, 0);
+AudioConnection          patchCord14(AudioSynthWaveformModulated_(carrier)_4, 0, AudioMixer4_(sourceMixer)_ 4, 0);
+AudioConnection          patchCord15(AudioSynthWaveformModulated_(carrier)_5, 0, AudioMixer4_(sourceMixer)_ 5, 0);
+AudioConnection          patchCord16(AudioSynthWaveformModulated_(carrier)_7, 0, AudioMixer4_(sourceMixer)_ 7, 0);
+AudioConnection          patchCord17(AudioSynthSerumWavetable_(wavetable)_2, 0, AudioMixer4_(sourceMixer)_ 2, 1);
+AudioConnection          patchCord18(AudioSynthSerumWavetable_(wavetable)_0, 0, AudioMixer4_(sourceMixer)_0, 1);
+AudioConnection          patchCord19(AudioSynthSerumWavetable_(wavetable)_1, 0, AudioMixer4_(sourceMixer)_ 1, 1);
+AudioConnection          patchCord20(AudioSynthSerumWavetable_(wavetable)_3, 0, AudioMixer4_(sourceMixer)_ 3, 1);
+AudioConnection          patchCord21(AudioSynthSerumWavetable_(wavetable)_4, 0, AudioMixer4_(sourceMixer)_ 4, 1);
+AudioConnection          patchCord22(AudioSynthSerumWavetable_(wavetable)_6, 0, AudioMixer4_(sourceMixer)_ 6, 1);
+AudioConnection          patchCord23(AudioSynthSerumWavetable_(wavetable)_5, 0, AudioMixer4_(sourceMixer)_ 5, 1);
+AudioConnection          patchCord24(AudioSynthSerumWavetable_(wavetable)_7, 0, AudioMixer4_(sourceMixer)_ 7, 1);
+AudioConnection          patchCord25(AudioMixer4_(sourceMixer)_0, AudioEffectEnvelope_(envelope)_0);
+AudioConnection          patchCord26(AudioMixer4_(sourceMixer)_ 2, AudioEffectEnvelope_(envelope)_2);
+AudioConnection          patchCord27(AudioMixer4_(sourceMixer)_ 1, AudioEffectEnvelope_(envelope)_1);
+AudioConnection          patchCord28(AudioMixer4_(sourceMixer)_ 3, AudioEffectEnvelope_(envelope)_3);
+AudioConnection          patchCord29(AudioMixer4_(sourceMixer)_ 6, AudioEffectEnvelope_(envelope)_6);
+AudioConnection          patchCord30(AudioMixer4_(sourceMixer)_ 4, AudioEffectEnvelope_(envelope)_4);
+AudioConnection          patchCord31(AudioMixer4_(sourceMixer)_ 5, AudioEffectEnvelope_(envelope)_5);
+AudioConnection          patchCord32(AudioMixer4_(sourceMixer)_ 7, AudioEffectEnvelope_(envelope)_7);
+AudioConnection          patchCord33(AudioEffectEnvelope_(envelope)_0, 0, AudioMixer4_(voiceMixer)_A, 0);
+AudioConnection          patchCord34(AudioEffectEnvelope_(envelope)_2, 0, AudioMixer4_(voiceMixer)_A, 2);
+AudioConnection          patchCord35(AudioEffectEnvelope_(envelope)_1, 0, AudioMixer4_(voiceMixer)_A, 1);
+AudioConnection          patchCord36(AudioEffectEnvelope_(envelope)_3, 0, AudioMixer4_(voiceMixer)_A, 3);
+AudioConnection          patchCord37(AudioEffectEnvelope_(envelope)_4, 0, AudioMixer4_(voiceMixer)_B, 0);
+AudioConnection          patchCord38(AudioEffectEnvelope_(envelope)_5, 0, AudioMixer4_(voiceMixer)_B, 1);
+AudioConnection          patchCord39(AudioEffectEnvelope_(envelope)_7, 0, AudioMixer4_(voiceMixer)_B, 3);
+AudioConnection          patchCord40(AudioEffectEnvelope_(envelope)_6, 0, AudioMixer4_(voiceMixer)_B, 2);
+AudioConnection          patchCord41(AudioMixer4_(voiceMixer)_A, 0, AudioMixer4_(sumMixer), 0);
+AudioConnection          patchCord42(AudioMixer4_(voiceMixer)_B, 0, AudioMixer4_(sumMixer), 1);
+AudioConnection          patchCord43(AudioMixer4_(sumMixer), 0, AudioFilterStateVariable_(globalFilter), 0);
+AudioConnection          patchCord44(AudioLfo_(lfo), 0, AudioFilterStateVariable_(globalFilter), 1);
+AudioConnection          patchCord45(AudioFilterStateVariable_(globalFilter), 0, AudioAmplifier_(volumeAmp), 0);
+AudioConnection          patchCord46(AudioAmplifier_(volumeAmp), 0, AudioOutput12S2_(i2s2_output), 0);
+// GUItool: end automatically generated code
+

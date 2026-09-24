@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from lfo_waveform import (
+from synth.lfo_waveform import (
     DEFAULT_LFO_INTERP,
     DEFAULT_LFO_PRESET,
     apply_lfo_preset,
@@ -19,7 +19,7 @@ from lfo_waveform import (
     points_to_table,
     sample_points_from_table,
 )
-from safety_limits import (
+from synth.safety_limits import (
     DEFAULT_VOLUME_PCT,
     FILTER_DEFAULT_CUTOFF_HZ,
     FILTER_DEFAULT_Q,
@@ -30,7 +30,7 @@ from safety_limits import (
     clamp_lfo_depth_pct,
     clamp_lfo_rate,
 )
-from waveforms import (
+from synth.waveforms import (
     DEFAULT_CARRIER_WAVEFORM,
     carrier_waveform_label,
     clamp_carrier_waveform,

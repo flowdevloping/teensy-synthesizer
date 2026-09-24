@@ -7,13 +7,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from conlang_lexicon import (
+from conlang.conlang_lexicon import (
     WORD_GAP_MS,
     Lexeme,
     Phoneme,
     resolve_lexemes,
 )
-from safety_limits import clamp_carrier_hz
+from synth.safety_limits import clamp_carrier_hz
 
 CONLANG_VOICE_ID = "conlang:0"
 GLIDE_STEP_MS = 16

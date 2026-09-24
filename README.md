@@ -94,7 +94,7 @@ Besides that, see the Steps for Usage Option 1:
 4. Play sound.
 
 How it works:
-The GUI Application sends messages via USB Serial to the Teensy. The messages are in string format (`voiceId,carrierHz,modHz,volumePct,modDepthPct\\n`, see `protocol.py`). The Teensy receives the messages, handles them and synthesizes sound using the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
+The GUI Application sends messages via USB Serial to the Teensy. The messages are in string format (`voiceId,carrierHz,modHz,volumePct,modDepthPct\\n`, see `Scripts/playback/teensy/protocol.py`). The Teensy receives the messages, handles them and synthesizes sound using the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
 
 ### Usage Option 2: Not connected to the *Teensy Audio Module*:
 Steps:
@@ -111,7 +111,7 @@ Connect MIDI-Keyboard to your local device , then you will be able to connect it
 
 ## Conlang Functionality
 
-A small constructed language (conlang) can be played. Vocabulary lives in `Scripts/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
+A small constructed language (conlang) can be played. Vocabulary lives in `Scripts/conlang/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
 
 ### Building blocks
 
@@ -163,7 +163,7 @@ flowchart LR
 
 - `compile_utterance` turns lexeme ids into timed events (`note_on`, `retune`, `note_off`).
 - `UtterancePlayer` schedules those events; the GUI synth callbacks produce the audio.
-- Playback goes through the GUI callbacks wired in `gui.py`: `on_note_on` → `_note_on`, `on_retune` → `_retune_voice`, `on_note_off` → `_note_off`, all on voice `conlang:0`. `retune` keeps the tone sounding and only changes its frequency (used by glide and warble).
+- Playback goes through the GUI callbacks wired in `Scripts/ui/gui.py`: `on_note_on` → `_note_on`, `on_retune` → `_retune_voice`, `on_note_off` → `_note_off`, all on voice `conlang:0`. `retune` keeps the tone sounding and only changes its frequency (used by glide and warble).
 
 
 ## Project Structure
@@ -172,20 +172,31 @@ flowchart LR
 exports/                -   Exported specs for Teensy (JSON + Markdown)
 Scripts/
   app.py                -   Application entry point
-  gui.py                -   CustomTkinter GUI interface
-  conlang_lexicon.py    -   Phonemes, lexemes, utterances
-  conlang_utterance_player.py - Compile utterances into timed events and schedule playback
-  engines/              -   FM engine and shared DSP helpers
-  audio_engine.py       -   LocalAudioEngine (sounddevice stream + FmEngine)
-  synth_mode_presets.py -   Presets for FM synthesis
-  setup_store.py        -   Save/load/export synth setups
-  serial_client.py      -   Serial port communication (Teensy)
-  protocol.py           -   Package definition/builder for Teensy communication
-  config_store.py       -   Load/save config.json settings
-  midi_input.py         -   MIDI keyboard input handling
-  synth_state.py        -   Object definition of synth state objects
-  fm_utils.py           -   FM utilities (e.g. compute_modulator_hz)
-  safety_limits.py      -   Safety limits and value clamping
+  ui/                   -   GUI and MIDI input
+    gui.py              -   CustomTkinter GUI interface
+    midi_input.py       -   MIDI keyboard input handling
+  synth/                -   Synth state, waveforms, limits, presets
+    synth_state.py      -   Object definition of synth state objects
+    synth_mode_presets.py - Presets for FM synthesis
+    waveforms.py        -   Carrier waveform names and IDs
+    lfo_waveform.py     -   LFO wavetable generation
+    fm_utils.py         -   FM utilities (e.g. compute_modulator_hz)
+    safety_limits.py    -   Safety limits and value clamping
+  playback/
+    local/              -   Local sounddevice playback
+      audio_engine.py   -   LocalAudioEngine (sounddevice stream + FmEngine)
+      engines/          -   FM engine and shared DSP helpers
+    teensy/             -   Serial link to the Teensy
+      serial_client.py  -   Serial port communication (Teensy)
+      protocol.py       -   Package definition/builder for Teensy communication
+  conlang/
+    conlang_lexicon.py  -   Phonemes, lexemes, utterances
+    conlang_utterance_player.py - Compile utterances into timed events and schedule playback
+  storage/
+    config_store.py     -   Load/save config.json settings
+    setup_store.py      -   Save/load/export synth setups
+tools/
+  wav_to_c_header.py    -   Convert a wavetable WAV into a C header for the firmware
 setups/                 -   Saved setups (JSON)
 visuals/                -   Visuals
 config.json             -   Config of latest GUI settings (to load last applied settings)

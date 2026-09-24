@@ -35,8 +35,8 @@ parameters, not per-voice notes. The shape lives in the RAM table uploaded via W
 
 from dataclasses import dataclass
 
-from lfo_waveform import LFO_TABLE_CHUNK_SIZE, LFO_WAVETABLE_SIZE
-from safety_limits import (
+from synth.lfo_waveform import LFO_TABLE_CHUNK_SIZE, LFO_WAVETABLE_SIZE
+from synth.safety_limits import (
     clamp_carrier_hz,
     clamp_filter_cutoff,
     clamp_filter_q,
@@ -46,7 +46,7 @@ from safety_limits import (
     clamp_modulator_hz,
     clamp_volume_pct,
 )
-from waveforms import carrier_waveform_id
+from synth.waveforms import carrier_waveform_id
 
 
 @dataclass(frozen=True)
