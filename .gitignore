@@ -39,10 +39,6 @@ config.json
 *.wav
 *.tmp
 
-# Audio exports and setups
-exports/
-setups/
-
 # Wavetables 
 wavetables/
 
