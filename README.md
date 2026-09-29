@@ -43,7 +43,7 @@ Installation:
 > Note: On Linux you may have to install underlying system libraries (i.e. 'PortAudio', bc. 'sounddevice' in 'requirements.txt' is only a wrapper of 'PortAudio'). On Windows and macOS these system libraries are usually automatically included in the packages.
 ```bash
 sudo apt update 
-sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound2-dev .
+sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound2-dev 
 ```
 
 Setup:
