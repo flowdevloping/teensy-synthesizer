@@ -88,6 +88,10 @@ from synth.waveforms import (
 
 from ui.midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
 
+# X11 repeats a held key as KeyRelease+KeyPress a few ms apart. Wait this long
+# before treating a release as real, so a following press can cancel it.
+KEY_RELEASE_DEBOUNCE_MS = 5
+
 
 class SynthApp(ctk.CTk):
     """Main class of customtkinter module to build GUI.
@@ -153,6 +157,7 @@ class SynthApp(ctk.CTk):
         self._connect_in_progress = False
         self._midi_connect_in_progress = False
         self._pressed_keys: set[str] = set()
+        self._key_release_after: dict[str, object] = {}
         self._note_buttons: dict[str, ctk.CTkButton] = {}
         self._key_freq_entries: dict[str, ctk.CTkEntry] = {}
         self._note_button_default_color: str | tuple[str, str] | None = None
@@ -176,7 +181,7 @@ class SynthApp(ctk.CTk):
         self._refresh_midi_list()
         self._refresh_display()
         self._log("Config loaded")
-        self._start_local_audio()
+        self._sync_local_audio_stream()
         self._start_watchdog()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -1209,6 +1214,7 @@ class SynthApp(ctk.CTk):
 
         key = self._normalize_key(event)
         if key is not None:
+            self._cancel_key_release_timer(key)
             if key in self._pressed_keys:
                 return
             self._pressed_keys.add(key)
@@ -1241,9 +1247,31 @@ class SynthApp(ctk.CTk):
         if key is None or key not in self._pressed_keys:
             return
 
+        self._cancel_key_release_timer(key)
+        self._key_release_after[key] = self.after(
+            KEY_RELEASE_DEBOUNCE_MS, self._commit_key_release, key
+        )
+
+    def _commit_key_release(self, key: str) -> None:
+        self._key_release_after.pop(key, None)
+        if key not in self._pressed_keys:
+            return
         self._pressed_keys.discard(key)
         self._set_note_button_pressed(key, False)
         self._note_off(key)
+
+    def _cancel_key_release_timer(self, key: str) -> None:
+        token = self._key_release_after.pop(key, None)
+        if token is None:
+            return
+        try:
+            self.after_cancel(token)
+        except TclError:
+            pass
+
+    def _cancel_pending_key_releases(self) -> None:
+        for key in list(self._key_release_after):
+            self._cancel_key_release_timer(key)
 
     def _log(self, message: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -1361,12 +1389,29 @@ class SynthApp(ctk.CTk):
         self._note_off(f"midi:{note}")
 
     def _start_local_audio(self) -> None:
+        was_up = self.audio_engine.is_available
         if self.audio_engine.start():
-            self._log("Local audio engine started")
+            if not was_up:
+                self._log("Local audio engine started")
         else:
             message = self.audio_engine.error_message or "unknown"
             self._log(f"Local audio engine unavailable: {message}")
         self._refresh_local_audio_status()
+
+    def _stop_local_audio(self) -> None:
+        if not self.audio_engine.is_available:
+            self._refresh_local_audio_status()
+            return
+        self.audio_engine.close()
+        self._log("Local audio engine stopped")
+        self._refresh_local_audio_status()
+
+    def _sync_local_audio_stream(self) -> None:
+        want = self.local_audio_var.get() and not self.serial_client.is_connected
+        if want:
+            self._start_local_audio()
+        else:
+            self._stop_local_audio()
 
     # Returns true if checkbox checked and audio engine is available
     def _local_audio_active(self) -> bool:
@@ -1379,12 +1424,12 @@ class SynthApp(ctk.CTk):
     def _refresh_local_audio_status(self) -> None:
         if not hasattr(self, "local_audio_status_label"):
             return
-        if not self.audio_engine.is_available:
-            text = "Local Playback: not available"
-        elif self.serial_client.is_connected:
+        if self.serial_client.is_connected:
             text = "Local Playback: Standby (Teensy active)"
-        elif self.local_audio_var.get():
+        elif self.local_audio_var.get() and self.audio_engine.is_available:
             text = "Local Playback: active"
+        elif self.local_audio_var.get() and self.audio_engine.error_message:
+            text = "Local Playback: not available"
         else:
             text = "Local: disabled"
         self.local_audio_status_label.configure(text=text)
@@ -1393,9 +1438,7 @@ class SynthApp(ctk.CTk):
         self._save_config()
         enabled = self.local_audio_var.get()
         self._log(f"Local playback {'enabled' if enabled else 'disabled'}")
-        if not enabled:
-            self.audio_engine.all_notes_off()
-        self._refresh_local_audio_status()
+        self._sync_local_audio_stream()
 
     def _set_modulator_mode_ui(self) -> None:
         is_ratio = self.synth_state.modulator_mode == "ratio"
@@ -1598,14 +1641,14 @@ class SynthApp(ctk.CTk):
         self._set_connection_controls(False)
         self.status_label.configure(text="Status: Connection lost")
         self._log("Connection lost")
-        self._refresh_local_audio_status()
+        self._sync_local_audio_stream()
 
     def _handle_auto_reconnected(self, port: str, serial_number: str | None) -> None:
         self._connect_in_progress = False
         self.synth_state.connected = True
         self.synth_state.port = port
         self._remember_serial_target(port, serial_number)
-        self.audio_engine.all_notes_off()
+        self._sync_local_audio_stream()
         self._save_config()
         self._set_connection_controls(True)
         self._log(f"Auto-Reconnect successful: {port}")
@@ -1748,6 +1791,7 @@ class SynthApp(ctk.CTk):
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
                 self._set_connection_controls(False)
+                self._sync_local_audio_stream()
                 self.status_label.configure(text=f"Status: Send error ({exc})")
                 self._log(f"Send error: {exc}")
                 # If local audio is active, play the voice on the local device
@@ -1787,6 +1831,7 @@ class SynthApp(ctk.CTk):
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
                 self._set_connection_controls(False)
+                self._sync_local_audio_stream()
                 self.status_label.configure(text=f"Status: Send error ({exc})")
                 self._log(f"Note-Off failed: {exc}")
             return
@@ -1811,6 +1856,7 @@ class SynthApp(ctk.CTk):
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
                 self._set_connection_controls(False)
+                self._sync_local_audio_stream()
                 self.status_label.configure(text=f"Status: Send error ({exc})")
                 self._log(f"Note-Off failed: {exc}")
             return
@@ -1849,6 +1895,7 @@ class SynthApp(ctk.CTk):
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
                 self._set_connection_controls(False)
+                self._sync_local_audio_stream()
                 self.status_label.configure(text=f"Status: Send error ({exc})")
                 self._log(f"Send error: {exc}")
             self._refresh_display()
@@ -1966,6 +2013,7 @@ class SynthApp(ctk.CTk):
 
     def _on_stop(self) -> None:
         self._stop_utterance(release=False)
+        self._cancel_pending_key_releases()
         self._pressed_keys.clear()
         for key in list(self._note_buttons):
             self._set_note_button_pressed(key, False)
@@ -2014,6 +2062,7 @@ class SynthApp(ctk.CTk):
                 self.synth_state.connected = False
                 self.serial_client.disconnect()
                 self._set_connection_controls(False)
+                self._sync_local_audio_stream()
                 self.status_label.configure(text=f"Status: Send error ({exc})")
                 self._log(f"LFO send error: {exc}")
         self._refresh_display()
@@ -2031,6 +2080,7 @@ class SynthApp(ctk.CTk):
             self.synth_state.connected = False
             self.serial_client.disconnect()
             self._set_connection_controls(False)
+            self._sync_local_audio_stream()
             self.status_label.configure(text=f"Status: Send error ({exc})")
             self._log(f"LFO table send error: {exc}")
 
@@ -2228,7 +2278,7 @@ class SynthApp(ctk.CTk):
         self.synth_state.connected = True
         self.synth_state.port = port
         self._remember_serial_target(port, serial_number)
-        self.audio_engine.all_notes_off()
+        self._sync_local_audio_stream()
         self._save_config()
         self._set_connection_controls(True)
         self._log(f"Connected to {port}")
@@ -2243,6 +2293,7 @@ class SynthApp(ctk.CTk):
         self.synth_state.port = None
         self.serial_client.disconnect()
         self._set_connection_controls(False)
+        self._sync_local_audio_stream()
         self.status_label.configure(text=f"Status: Connection error ({message})")
         self._log(f"Connection error: {message}")
         self._refresh_display()
@@ -2258,6 +2309,7 @@ class SynthApp(ctk.CTk):
         self.synth_state.connected = False
         self.synth_state.port = None
         self._set_connection_controls(False)
+        self._sync_local_audio_stream()
         self._log(f"Disconnected from {port}")
         self._refresh_display()
 
