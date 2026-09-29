@@ -11,13 +11,13 @@ It is also possible to use a *MIDI Keyboard* as input device.
 
 ## Setup
 ### 1. Clone Repo
-Clone the repository at the preferred location on your *Local Device*:
-```bash
+Clone the repository at your preferred location:
+```
 git clone https://github.tik.uni-stuttgart.de/st200539/audio-module-project.git
 ```
 
 ### 2. Installation: 
-Choose the instructions for your operating system and run the corresponding commands:
+ Run the corresponding commands dependant on your operating system:
 
 #### Windows:
 
@@ -36,30 +36,11 @@ Start:
 python Scripts\app.py # Start the application
 ```
 
-#### macOS
-
-Installation/Setup: 
-
-```bash
-python3 -m venv venv # Create virtual environment
-source venv/bin/activate # Activate virtual environment
-pip install -r requirements.txt # Install required python libraries 
-```
-
-Start:
-
-```bash
-python Scripts/app.py # Start the application
-```
-
-> Note: If you get a Tkinter error, install Python from [python.org](https://www.python.org/downloads/) or via Homebrew (`brew install python-tk`), as the built-in macOS Python may lack Tk support.
-
-
 #### Linux (Debian / Ubuntu)
 
 Installation of required system libraries (Tkinter, PortAudio, MIDI build tools):
 
-```bash
+```
 sudo apt update 
 sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound2-dev 
 # Info: In Linux you may have to install underlying system libraries (i.e. 'PortAudio', bc 'sounddevice' in 'requirements.txt' is only a wrapper of 'PortAudio'). On Windows and macOS these system libraries are usually automatically included in the packages.
@@ -79,6 +60,23 @@ Start:
 python Scripts/app.py # Start the application
 ```
 
+#### macOS
+
+Installation/Setup: 
+
+```bash
+python3 -m venv venv # Create virtual environment
+source venv/bin/activate # Activate virtual environment
+pip install -r requirements.txt # Install required python libraries 
+```
+
+Start:
+
+```
+python Scripts/app.py # Start the application
+```
+
+> Note: If you get a Tkinter error, install Python from [python.org](https://www.python.org/downloads/) or via Homebrew (`brew install python-tk`), as the built-in macOS Python may lack Tk support.
 
 ## Usage
 
