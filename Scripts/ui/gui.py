@@ -1,4 +1,5 @@
-"""Builds GUI and handles input.
+"""Test []
+Builds GUI and handles input.
 
 This script provides the main components to either control the audio module or just play around with
 sound creation on the local device (when not connected to the audio module).
@@ -13,11 +14,9 @@ Hardware Dependencies:
 """
 
 from datetime import datetime
-from tkinter import Canvas, Entry, Text
+from tkinter import Canvas, Entry, TclError, Text
 
 import customtkinter as ctk  # Python UI library based on tkinter (standard Python GUI toolkit)
-from playback.local.audio_engine import LocalAudioEngine
-from storage.config_store import load_config, save_config
 from conlang.conlang_lexicon import (
     LEXEME_ORDER,
     LEXEMES,
@@ -31,6 +30,16 @@ from conlang.conlang_utterance_player import (
     UtterancePlayer,
     compile_utterance,
 )
+from playback.local.audio_engine import LocalAudioEngine
+from playback.teensy.serial_client import SerialClient, list_serial_ports
+from storage.config_store import load_config, save_config
+from storage.setup_store import (
+    SynthSetup,
+    export_user_spec,
+    list_setups,
+    load_setup,
+    save_setup,
+)
 from synth.fm_utils import compute_modulator_hz
 from synth.lfo_waveform import (
     LFO_PRESET_LABELS,
@@ -41,7 +50,6 @@ from synth.lfo_waveform import (
     point_indices,
     table_to_int16,
 )
-from ui.midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
 from synth.safety_limits import (
     DEFAULT_VOLUME_PCT,
     FILTER_MAX_CUTOFF_HZ,
@@ -68,14 +76,6 @@ from synth.safety_limits import (
     clamp_modulator_ratio,
     clamp_volume_pct,
 )
-from playback.teensy.serial_client import SerialClient, WatchdogCallbacks, list_com_ports
-from storage.setup_store import (
-    SynthSetup,
-    export_user_spec,
-    list_setups,
-    load_setup,
-    save_setup,
-)
 from synth.synth_mode_presets import FM_PRESETS, apply_preset
 from synth.synth_state import NOTE_MAPPING, PC_KEYBOARD_MAPPING, SynthState
 from synth.waveforms import (
@@ -85,6 +85,8 @@ from synth.waveforms import (
     carrier_waveform_labels,
     is_wavetable_carrier,
 )
+
+from ui.midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
 
 
 class SynthApp(ctk.CTk):
@@ -194,7 +196,7 @@ class SynthApp(ctk.CTk):
         connection_frame.grid(row=0, column=0, padx=16, pady=(16, 8), sticky="ew")
         connection_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(connection_frame, text="COM-Port").grid(
+        ctk.CTkLabel(connection_frame, text="Serial Connection").grid(
             row=0, column=0, padx=12, pady=12, sticky="w"
         )
 
@@ -1549,21 +1551,46 @@ class SynthApp(ctk.CTk):
 
     # Starts the watchdog timer for auto-reconnect
     def _start_watchdog(self) -> None:
-        callbacks = WatchdogCallbacks(
-            on_lost=lambda: self.after(0, self._handle_connection_lost),
-            on_reconnect_attempt=lambda port: self.after(
-                0, self._log, f"Auto-Reconnect: trying {port}"
-            ),
-            on_reconnected=lambda port: self.after(
-                0, self._handle_auto_reconnected, port
-            ),
-            on_reconnect_failed=lambda message: self.after(
-                0, self._log, f"Auto-Reconnect failed: {message}"
-            ),
-            should_auto_reconnect=lambda: self.auto_reconnect_var.get(),
-            get_last_port=lambda: self.config.last_port,
+        self.serial_client.set_auto_reconnect(self.auto_reconnect_var.get())
+        self.serial_client.set_reconnect_target(
+            self.config.last_port,
+            self.config.last_port_serial,
         )
-        self.serial_client.start_watchdog(callbacks)
+        self.serial_client.start_watchdog()
+        self._poll_serial_events()
+
+    def _poll_serial_events(self) -> None:
+        while True:
+            event = self.serial_client.poll_event()
+            if event is None:
+                break
+            kind = event[0]
+            if kind == "lost":
+                self._handle_connection_lost()
+            elif kind == "attempt":
+                self._log(f"Auto-Reconnect: trying {event[1]}")
+            elif kind == "reconnected":
+                self._handle_auto_reconnected(
+                    str(event[1]), _optional_event_text(event, 2)
+                )
+            elif kind == "failed":
+                self._log(f"Auto-Reconnect failed: {event[1]}")
+            elif kind == "connected":
+                self._handle_connect_success(
+                    str(event[1]), _optional_event_text(event, 2)
+                )
+            elif kind == "connect_error":
+                self._handle_connect_error(str(event[1]))
+        try:
+            self.after(200, self._poll_serial_events)
+        except TclError:
+            return
+
+    def _remember_serial_target(self, port: str, serial_number: str | None) -> None:
+        self.config.last_port = port
+        self.config.last_port_serial = serial_number
+        self.serial_client.set_reconnect_target(port, serial_number)
+        self._refresh_port_list()
 
     def _handle_connection_lost(self) -> None:
         self.synth_state.connected = False
@@ -1573,11 +1600,11 @@ class SynthApp(ctk.CTk):
         self._log("Connection lost")
         self._refresh_local_audio_status()
 
-    def _handle_auto_reconnected(self, port: str) -> None:
+    def _handle_auto_reconnected(self, port: str, serial_number: str | None) -> None:
         self._connect_in_progress = False
         self.synth_state.connected = True
         self.synth_state.port = port
-        self.config.last_port = port
+        self._remember_serial_target(port, serial_number)
         self.audio_engine.all_notes_off()
         self._save_config()
         self._set_connection_controls(True)
@@ -1587,7 +1614,7 @@ class SynthApp(ctk.CTk):
         self._refresh_display()
 
     def _refresh_port_list(self) -> None:
-        ports = list_com_ports()
+        ports = list_serial_ports()
         values = ports if ports else ["No port found"]
         self.port_menu.configure(values=values)
 
@@ -2176,6 +2203,7 @@ class SynthApp(ctk.CTk):
         self._send_lfo_table()
 
     def _on_auto_reconnect_changed(self) -> None:
+        self.serial_client.set_auto_reconnect(self.auto_reconnect_var.get())
         self._save_config()
         state = "enabled" if self.auto_reconnect_var.get() else "disabled"
         self._log(f"Auto-Reconnect {state}")
@@ -2183,8 +2211,8 @@ class SynthApp(ctk.CTk):
     def _on_connect(self) -> None:
         port = self.port_var.get()
         if not port or port == "No port found":
-            self.status_label.configure(text="Status: No valid COM port selected")
-            self._log("Connection aborted: no valid COM port")
+            self.status_label.configure(text="Status: No valid serial port selected")
+            self._log("Connection aborted: no valid serial port")
             return
 
         self._connect_in_progress = True
@@ -2192,21 +2220,14 @@ class SynthApp(ctk.CTk):
         self.status_label.configure(text=f"Status: Connecting to {port}...")
         self._log(f"Connecting to {port}...")
         self.update_idletasks()
-
-        def on_success() -> None:
-            self.after(0, self._handle_connect_success, port)
-
-        def on_error(message: str) -> None:
-            self.after(0, self._handle_connect_error, message)
-
-        self.serial_client.connect(port, on_success=on_success, on_error=on_error)
+        self.serial_client.connect(port)
 
     # Function to handle the connect success event
-    def _handle_connect_success(self, port: str) -> None:
+    def _handle_connect_success(self, port: str, serial_number: str | None) -> None:
         self._connect_in_progress = False
         self.synth_state.connected = True
         self.synth_state.port = port
-        self.config.last_port = port
+        self._remember_serial_target(port, serial_number)
         self.audio_engine.all_notes_off()
         self._save_config()
         self._set_connection_controls(True)
@@ -2250,6 +2271,13 @@ class SynthApp(ctk.CTk):
         self.audio_engine.close()
         self._save_config()
         self.destroy()
+
+
+def _optional_event_text(event: tuple, index: int) -> str | None:
+    """Return one event field as text, or None when it is missing."""
+    if len(event) <= index or event[index] is None:
+        return None
+    return str(event[index])
 
 
 # Entry point of customTkinter app

@@ -1,4 +1,5 @@
-"""Manage the loading and saving of app configuration."""
+"""Test []
+Manage the loading and saving of app configuration."""
 
 import json
 from dataclasses import dataclass, field
@@ -40,7 +41,8 @@ class AppConfig:
     """Configure the application settings.
 
     Attributes:
-        last_port (str | None): The last port used for the serial connection (e.g. 'COM6').
+        last_port (str | None): The last serial device path (e.g. 'COM6' or '/dev/ttyACM0').
+        last_port_serial (str | None): USB serial number of that device, stable when the path changes.
         last_midi_port (str | None): The last port used for the MIDI connection (e.g. 'APC Key 25 mk2 0').
         auto_reconnect (bool): Whether to automatically reconnect to the serial port.
         key_frequencies (dict[str, float]): The key frequencies for the PC keyboard.
@@ -64,6 +66,7 @@ class AppConfig:
     """
 
     last_port: str | None = None
+    last_port_serial: str | None = None
     last_midi_port: str | None = None
     auto_reconnect: bool = True
     key_frequencies: dict[str, float] = field(default_factory=dict)
@@ -106,6 +109,7 @@ def load_config() -> AppConfig:
 
     return AppConfig(
         last_port=data.get("last_port"),
+        last_port_serial=data.get("last_port_serial") or None,
         last_midi_port=data.get("last_midi_port"),
         auto_reconnect=bool(data.get("auto_reconnect", True)),
         key_frequencies={
@@ -150,6 +154,7 @@ def save_config(config: AppConfig) -> None:
 
     data = {
         "last_port": config.last_port,
+        "last_port_serial": config.last_port_serial,
         "last_midi_port": config.last_midi_port,
         "auto_reconnect": config.auto_reconnect,
         "key_frequencies": config.key_frequencies,

@@ -1,3 +1,5 @@
+Test []
+
 # Python GUI Application for Sonic HRI Project 
 
 Python application for corresponding *Teensy Audio Module*. 
@@ -73,6 +75,15 @@ source venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries
 ```
 
+The login user needs access to the serial device (`dialout` on Debian/Ubuntu):
+
+```bash
+sudo usermod -aG dialout "$USER"
+# Log out and back in so the new group applies.
+```
+
+ModemManager or brltty can claim `/dev/ttyACM*` for a short time after the Teensy is plugged in. Auto-reconnect tries again every 2 seconds once the port is free.
+
 Start:
 
 ```bash
@@ -90,7 +101,7 @@ Currently the *Teensy Audio Module* is in a prototype state. So please consult F
 Besides that, see the Steps for Usage Option 1:
 1. Ensure, that the Battery (LiPo) is connected to the amplifier and therefore the speaker. Ensure also that the Battery is loaded (Full: 4.2 V, Half-Full: 3.7 V, Needs to be loaded: 3.2 V).  
 2. Connect your Local Device to the Teensy Audio Module via USB. 
-3. Start the Python Application on your Local Device  and ensure that the connection to the Teensy is indicated in the field `COM-Port`. 
+3. Start the Python Application on your Local Device  and ensure that the connection to the Teensy is indicated in the field `Serial Connection`. 
 4. Play sound.
 
 How it works:
