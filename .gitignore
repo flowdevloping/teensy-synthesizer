@@ -42,11 +42,8 @@ config.json
 # Wavetables 
 wavetables/
 
-# Test Scripts & Notes
-Test_Scripts/
-
 # Teensy Audio Library Setups
-Teensy_Audio_Library/
+setups-teensy_audio_library/
 
 # Clangd (c++ language server) configs
 .clangd
