@@ -21,8 +21,8 @@ Hardware Dependencies:
 """
 
 import customtkinter as ctk  # Python UI library based on tkinter (standard Python GUI toolkit)
-
 from storage.config_store import load_config
+
 from ui.midi_input import MidiInputHandler
 from ui.panels.conlang_panel import ConlangPanel
 from ui.panels.connection_panel import ConnectionPanel
@@ -76,7 +76,7 @@ class SynthApp(ctk.CTk):
         self.connection_panel.start()
         self.refresh_display()
         self.log("Config loaded")
-        self.connection_panel.start_local_audio()
+        self.connection_panel.sync_local_audio_stream()
         self.connection_panel.start_watchdog()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -117,9 +117,7 @@ class SynthApp(ctk.CTk):
         self.conlang_panel = ConlangPanel(
             controls_frame, controller, on_stop=self.stop_all_sounds
         )
-        self.conlang_panel.frame.grid(
-            row=3, column=0, padx=0, pady=(0, 8), sticky="ew"
-        )
+        self.conlang_panel.frame.grid(row=3, column=0, padx=0, pady=(0, 8), sticky="ew")
 
         self.sound_panel = SoundPanel(controls_frame, controller)
         self.sound_panel.frame.grid(row=4, column=0, padx=0, pady=(0, 8), sticky="ew")
@@ -158,6 +156,9 @@ class SynthApp(ctk.CTk):
 
     def show_link_error(self, exc: Exception) -> None:
         self.connection_panel.show_send_error(exc)
+
+    def refresh_local_audio_status(self) -> None:
+        self.connection_panel.refresh_local_audio_status()
 
     # ------------------------------------------------------------------
     # Window level actions

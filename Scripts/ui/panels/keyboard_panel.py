@@ -1,6 +1,6 @@
 """Keyboard panel: on-screen note buttons and PC keyboard input."""
 
-from tkinter import Entry, Text
+from tkinter import Entry, TclError, Text
 from typing import Callable
 
 import customtkinter as ctk
@@ -10,6 +10,10 @@ from synth.synth_mode_presets import FM_PRESETS
 from synth.synth_state import PC_KEYBOARD_MAPPING
 from ui.synth_controller import SynthController
 from ui.widgets import set_entry_text
+
+# X11 repeats a held key as KeyRelease+KeyPress a few ms apart. Wait this long
+# before treating a release as real, so a following press can cancel it.
+KEY_RELEASE_DEBOUNCE_MS = 5
 
 
 class KeyboardPanel:
@@ -41,6 +45,7 @@ class KeyboardPanel:
         self._adjust_volume = adjust_volume
 
         self._pressed_keys: set[str] = set()
+        self._key_release_after: dict[str, object] = {}
         self._note_buttons: dict[str, ctk.CTkButton] = {}
         self._key_freq_entries: dict[str, ctk.CTkEntry] = {}
         self._note_button_default_color: str | tuple[str, str] | None = None
@@ -148,6 +153,7 @@ class KeyboardPanel:
 
     def clear_pressed_keys(self) -> None:
         """Forget all held keys and reset the button highlighting."""
+        self._cancel_pending_key_releases()
         self._pressed_keys.clear()
         for key in list(self._note_buttons):
             self._set_note_button_pressed(key, False)
@@ -233,6 +239,7 @@ class KeyboardPanel:
 
         key = self._normalize_key(event)
         if key is not None:
+            self._cancel_key_release_timer(key)
             if key in self._pressed_keys:
                 return
             self._pressed_keys.add(key)
@@ -265,6 +272,28 @@ class KeyboardPanel:
         if key is None or key not in self._pressed_keys:
             return
 
+        self._cancel_key_release_timer(key)
+        self._key_release_after[key] = self.parent.after(
+            KEY_RELEASE_DEBOUNCE_MS, self._commit_key_release, key
+        )
+
+    def _commit_key_release(self, key: str) -> None:
+        self._key_release_after.pop(key, None)
+        if key not in self._pressed_keys:
+            return
         self._pressed_keys.discard(key)
         self._set_note_button_pressed(key, False)
         self.controller.note_off(key)
+
+    def _cancel_key_release_timer(self, key: str) -> None:
+        token = self._key_release_after.pop(key, None)
+        if token is None:
+            return
+        try:
+            self.parent.after_cancel(token)
+        except TclError:
+            pass
+
+    def _cancel_pending_key_releases(self) -> None:
+        for key in list(self._key_release_after):
+            self._cancel_key_release_timer(key)

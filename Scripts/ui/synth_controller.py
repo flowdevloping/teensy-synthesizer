@@ -58,6 +58,9 @@ class ControllerView(Protocol):
     def show_link_error(self, exc: Exception) -> None:
         """The serial link broke while sending. Update connection controls and status."""
 
+    def refresh_local_audio_status(self) -> None:
+        """The local audio stream was started or stopped. Update its status text."""
+
 
 class SynthController:
     """Coordinates synth state, output routing, config persistence and the UI.
@@ -94,6 +97,7 @@ class SynthController:
             log=self.log,
             on_link_error=self._on_link_error,
             release_voice=self.note_off,
+            on_local_audio_changed=self._on_local_audio_changed,
         )
         self.router.local_audio_enabled = config.local_audio_enabled
 
@@ -148,6 +152,10 @@ class SynthController:
     def _on_link_error(self, exc: Exception) -> None:
         if self.view is not None:
             self.view.show_link_error(exc)
+
+    def _on_local_audio_changed(self) -> None:
+        if self.view is not None:
+            self.view.refresh_local_audio_status()
 
     # ------------------------------------------------------------------
     # Config persistence

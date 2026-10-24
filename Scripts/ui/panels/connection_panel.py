@@ -190,14 +190,9 @@ class ConnectionPanel:
         self.refresh_port_list()
         self.refresh_midi_list()
 
-    def start_local_audio(self) -> None:
-        """Start the local audio engine and show its state."""
-        if self.audio_engine.start():
-            self.controller.log("Local audio engine started")
-        else:
-            message = self.audio_engine.error_message or "unknown"
-            self.controller.log(f"Local audio engine unavailable: {message}")
-        self.refresh_local_audio_status()
+    def sync_local_audio_stream(self) -> None:
+        """Open or close the local audio stream depending on checkbox and Teensy link."""
+        self.router.sync_local_audio_stream()
 
     def start_watchdog(self) -> None:
         """Start the serial watchdog (auto-reconnect) and the event polling."""
@@ -228,12 +223,12 @@ class ConnectionPanel:
         self.refresh_local_audio_status()
 
     def refresh_local_audio_status(self) -> None:
-        if not self.audio_engine.is_available:
-            text = "Local Playback: not available"
-        elif self.serial_client.is_connected:
+        if self.serial_client.is_connected:
             text = "Local Playback: Standby (Teensy active)"
-        elif self.local_audio_var.get():
+        elif self.local_audio_var.get() and self.audio_engine.is_available:
             text = "Local Playback: active"
+        elif self.local_audio_var.get() and self.audio_engine.error_message:
+            text = "Local Playback: not available"
         else:
             text = "Local: disabled"
         self.local_audio_status_label.configure(text=text)
@@ -252,9 +247,7 @@ class ConnectionPanel:
         self.router.local_audio_enabled = enabled
         self.controller.save_config()
         self.controller.log(f"Local playback {'enabled' if enabled else 'disabled'}")
-        if not enabled:
-            self.audio_engine.all_notes_off()
-        self.refresh_local_audio_status()
+        self.router.sync_local_audio_stream()
 
     # ------------------------------------------------------------------
     # Serial connection
@@ -352,7 +345,7 @@ class ConnectionPanel:
         self._set_connection_controls(False)
         self.status_label.configure(text="Status: Connection lost")
         self.controller.log("Connection lost")
-        self.refresh_local_audio_status()
+        self.router.sync_local_audio_stream()
 
     def _handle_auto_reconnected(self, port: str, serial_number: str | None) -> None:
         self._connect_in_progress = False

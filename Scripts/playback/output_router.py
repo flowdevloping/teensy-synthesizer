@@ -31,6 +31,8 @@ class OutputRouter:
             The router already marked the Teensy as disconnected at this point.
         release_voice (Callable[[str], None]): Called when the Teensy steals a voice slot
             from a voice which is still held. Expected to release that voice.
+        on_local_audio_changed (Callable[[], None]): Called after the local audio stream
+            was started or stopped, so the UI can update its status text.
 
     Attributes:
         local_audio_enabled (bool): User setting "Audio playback on local device".
@@ -45,6 +47,7 @@ class OutputRouter:
         log: Callable[[str], None],
         on_link_error: Callable[[Exception], None],
         release_voice: Callable[[str], None],
+        on_local_audio_changed: Callable[[], None],
     ) -> None:
         self.synth_state = synth_state
         self.serial_client = serial_client
@@ -53,6 +56,7 @@ class OutputRouter:
         self._log = log
         self._on_link_error = on_link_error
         self._release_voice = release_voice
+        self._on_local_audio_changed = on_local_audio_changed
 
     # ------------------------------------------------------------------
     # Routing state
@@ -71,6 +75,40 @@ class OutputRouter:
             and self.audio_engine.is_available
             and not self.serial_client.is_connected
         )
+
+    # ------------------------------------------------------------------
+    # Local audio stream lifecycle
+    # ------------------------------------------------------------------
+
+    def sync_local_audio_stream(self) -> None:
+        """Open the local audio stream if it is needed, close it otherwise.
+
+        The stream is only open while local playback is enabled AND no Teensy is
+        connected. Closing it releases the audio device (and silences all voices).
+        """
+        wanted = self.local_audio_enabled and not self.serial_client.is_connected
+        if wanted:
+            self._start_local_audio()
+        else:
+            self._stop_local_audio()
+
+    def _start_local_audio(self) -> None:
+        was_up = self.audio_engine.is_available
+        if self.audio_engine.start():
+            if not was_up:
+                self._log("Local audio engine started")
+        else:
+            message = self.audio_engine.error_message or "unknown"
+            self._log(f"Local audio engine unavailable: {message}")
+        self._on_local_audio_changed()
+
+    def _stop_local_audio(self) -> None:
+        if not self.audio_engine.is_available:
+            self._on_local_audio_changed()
+            return
+        self.audio_engine.close()
+        self._log("Local audio engine stopped")
+        self._on_local_audio_changed()
 
     # ------------------------------------------------------------------
     # Note events
@@ -258,13 +296,16 @@ class OutputRouter:
     # ------------------------------------------------------------------
 
     def teensy_connected_to(self, port: str) -> None:
-        """Record a freshly established Teensy link and silence local playback."""
+        """Record a freshly established Teensy link and close the local audio stream."""
         self.synth_state.connected = True
         self.synth_state.port = port
-        self.audio_engine.all_notes_off()
+        self.sync_local_audio_stream()
 
     def teensy_lost(self) -> None:
-        """Record that the Teensy link vanished (port already closed by the client)."""
+        """Record that the Teensy link vanished (port already closed by the client).
+
+        The caller is expected to call `sync_local_audio_stream()` afterwards.
+        """
         self.synth_state.connected = False
         self.synth_state.port = None
 
@@ -273,6 +314,7 @@ class OutputRouter:
         self.synth_state.connected = False
         self.synth_state.port = None
         self.serial_client.disconnect()
+        self.sync_local_audio_stream()
 
     def disconnect_teensy(self) -> None:
         """Close the Teensy link on user request, releasing sounding notes first."""
@@ -284,6 +326,7 @@ class OutputRouter:
         self.serial_client.disconnect()
         self.synth_state.connected = False
         self.synth_state.port = None
+        self.sync_local_audio_stream()
 
     def shutdown(self) -> None:
         """Stop the serial watchdog, close the port and close the local engine."""
@@ -313,8 +356,12 @@ class OutputRouter:
         self._log(f"Played locally: {packet}")
 
     def _drop_link(self, exc: Exception, log_message: str) -> None:
-        """Mark the Teensy as disconnected after a failed write and tell the UI."""
+        """Mark the Teensy as disconnected after a failed write and tell the UI.
+
+        Also reopens the local audio stream, so the caller can fall back to it.
+        """
         self.synth_state.connected = False
         self.serial_client.disconnect()
         self._on_link_error(exc)
+        self.sync_local_audio_stream()
         self._log(log_message)
