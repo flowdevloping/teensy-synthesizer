@@ -1,5 +1,3 @@
-Test []
-
 # Python GUI Application for Sonic HRI Project 
 
 Python application for corresponding *Teensy Audio Module*. 
