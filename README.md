@@ -40,7 +40,7 @@ python Scripts\app.py # Start the application
 #### Linux (Debian / Ubuntu)
 
 Installation:
-> Note: On Linux you have to take this extra step to install the mentioned underlying system libraries on OS level. On Windows and macOS these system libraries are usually automatically included in the packages.
+> Note: In Linux you may have to take this extra step to install the mentioned underlying system libraries on OS level. On Windows and macOS these system libraries are usually automatically included in the packages.
 ```bash
 sudo apt update 
 sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound2-dev 
@@ -53,14 +53,10 @@ source .venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries
 ```
 
-The login user needs access to the serial device (`dialout` on Debian/Ubuntu):
-
+> Note: If connection to the serial port fails with something like "Permission denied" the current Linux user is probably no member of the group "dialout", which handles serial ports. To fix that run the following command to add the user to the group "dialout". Then close and reopen the terminal or even log out and back in again to apply the changes.
 ```bash
 sudo usermod -aG dialout "$USER"
-# Log out and back in so the new group applies.
 ```
-
-ModemManager or brltty can claim `/dev/ttyACM*` for a short time after the Teensy is plugged in. Auto-reconnect tries again every 2 seconds once the port is free.
 
 Start:
 ```bash
@@ -68,7 +64,7 @@ python Scripts/app.py # Start the application
 ```
 
 #### macOS
-
+> Note: Not tested as i got no macOS system.
 Installation/Setup: 
 ```bash
 python3 -m venv .venv # Create virtual environment
