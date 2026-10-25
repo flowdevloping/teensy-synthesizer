@@ -8,8 +8,8 @@ import customtkinter as ctk
 from synth.safety_limits import VOLUME_KEYBOARD_STEP, clamp_carrier_hz
 from synth.synth_mode_presets import FM_PRESETS
 from synth.synth_state import PC_KEYBOARD_MAPPING
-from ui.synth_controller import SynthController
-from ui.widgets import set_entry_text
+from gui.synth_controller import SynthController
+from gui.widgets import set_entry_text
 
 # X11 repeats a held key as KeyRelease+KeyPress a few ms apart. Wait this long
 # before treating a release as real, so a following press can cancel it.

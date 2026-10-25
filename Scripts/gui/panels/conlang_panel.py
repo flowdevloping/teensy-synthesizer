@@ -17,7 +17,7 @@ from conlang.conlang_utterance_player import (
     UtterancePlayer,
     compile_utterance,
 )
-from ui.synth_controller import SynthController
+from gui.synth_controller import SynthController
 
 
 class ConlangPanel:

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-SETUPS_DIR = Path(__file__).resolve().parent.parent.parent / "setups"
+SETUPS_DIR = Path(__file__).resolve().parent.parent.parent / "setups-synth"
 EXPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "exports"
 
 

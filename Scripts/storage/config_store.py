@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config.json"
+CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config-gui.json"
 
 from synth.lfo_waveform import (
     DEFAULT_LFO_INTERP,

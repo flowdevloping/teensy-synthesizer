@@ -15,8 +15,8 @@ from synth.waveforms import (
     carrier_waveform_labels,
     is_wavetable_carrier,
 )
-from ui.synth_controller import SynthController
-from ui.widgets import add_labeled_slider, set_entry_text, wire_slider_entry
+from gui.synth_controller import SynthController
+from gui.widgets import add_labeled_slider, set_entry_text, wire_slider_entry
 
 
 class FmPanel:

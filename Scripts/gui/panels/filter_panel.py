@@ -10,8 +10,8 @@ from synth.safety_limits import (
     clamp_filter_cutoff,
     clamp_filter_q,
 )
-from ui.synth_controller import SynthController
-from ui.widgets import (
+from gui.synth_controller import SynthController
+from gui.widgets import (
     add_labeled_slider,
     add_teensy_only_hint,
     set_entry_text,

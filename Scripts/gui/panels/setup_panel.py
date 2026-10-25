@@ -1,9 +1,8 @@
 """Setup panel: save, load and export synth setups."""
 
-from typing import Callable
+from collections.abc import Callable
 
 import customtkinter as ctk
-
 from storage.config_store import AppConfig
 from storage.setup_store import (
     SynthSetup,
@@ -12,7 +11,8 @@ from storage.setup_store import (
     load_setup,
     save_setup,
 )
-from ui.synth_controller import SynthController
+
+from gui.synth_controller import SynthController
 
 
 class SetupPanel:
@@ -80,7 +80,7 @@ class SetupPanel:
         )
         self.setup_notes_entry.grid(row=3, column=1, padx=6, pady=(6, 12), sticky="ew")
         ctk.CTkButton(
-            setup_frame, text="Export spec", width=110, command=self._export_setup_spec
+            setup_frame, text="Export", width=110, command=self._export_setup_spec
         ).grid(row=3, column=2, padx=(6, 12), pady=(6, 12))
         self._refresh_setup_list()
 

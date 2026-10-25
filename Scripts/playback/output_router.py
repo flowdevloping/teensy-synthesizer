@@ -8,7 +8,7 @@ parameter update, LFO data) reaches the speaker:
   by the local sounddevice engine.
 - Otherwise, the event is only logged (display only).
 
-The router has no GUI dependency. It reports back to the UI via callbacks.
+The router has no GUI dependency. It reports back to the GUI via callbacks.
 """
 
 from typing import Callable
@@ -32,7 +32,7 @@ class OutputRouter:
         release_voice (Callable[[str], None]): Called when the Teensy steals a voice slot
             from a voice which is still held. Expected to release that voice.
         on_local_audio_changed (Callable[[], None]): Called after the local audio stream
-            was started or stopped, so the UI can update its status text.
+            was started or stopped, so the GUI can update its status text.
 
     Attributes:
         local_audio_enabled (bool): User setting "Audio playback on local device".
@@ -356,7 +356,7 @@ class OutputRouter:
         self._log(f"Played locally: {packet}")
 
     def _drop_link(self, exc: Exception, log_message: str) -> None:
-        """Mark the Teensy as disconnected after a failed write and tell the UI.
+        """Mark the Teensy as disconnected after a failed write and tell the GUI.
 
         Also reopens the local audio stream, so the caller can fall back to it.
         """

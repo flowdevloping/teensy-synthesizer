@@ -7,9 +7,9 @@ It composes the GUI panels and wires them to the `SynthController`, which transl
 inputs into events for the `OutputRouter` (Teensy via USB serial OR local sounddevice engine).
 
 Structure:
-- `ui/synth_controller.py`: application logic (note lifecycle, parameter changes, config).
-- `ui/panels/`: one module per GUI area (connection, display, keyboard, conlang, sound, setup, log).
-- `ui/widgets.py`: shared widget helpers (slider + entry wiring, value blocks).
+- `gui/synth_controller.py`: application logic (note lifecycle, parameter changes, config).
+- `gui/panels/`: one module per GUI area (connection, display, keyboard, conlang, sound, setup, log).
+- `gui/widgets.py`: shared widget helpers (slider + entry wiring, value blocks).
 - `playback/output_router.py`: routes events to the Teensy or the local audio engine.
 
 Hardware Dependencies:
@@ -20,26 +20,26 @@ Hardware Dependencies:
 - (optional): MIDI Keyboard connected via USB
 """
 
-import customtkinter as ctk  # Python UI library based on tkinter (standard Python GUI toolkit)
+import customtkinter as ctk  # Python GUI library based on tkinter (standard Python GUI toolkit)
 from storage.config_store import load_config
 
-from ui.midi_input import MidiInputHandler
-from ui.panels.conlang_panel import ConlangPanel
-from ui.panels.connection_panel import ConnectionPanel
-from ui.panels.display_panel import DisplayPanel
-from ui.panels.keyboard_panel import KeyboardPanel
-from ui.panels.log_panel import LogPanel
-from ui.panels.setup_panel import SetupPanel
-from ui.panels.sound_panel import SoundPanel
-from ui.synth_controller import SynthController
-from ui.widgets import disable_all_slider_scrolling
+from gui.midi_input import MidiInputHandler
+from gui.panels.conlang_panel import ConlangPanel
+from gui.panels.connection_panel import ConnectionPanel
+from gui.panels.display_panel import DisplayPanel
+from gui.panels.keyboard_panel import KeyboardPanel
+from gui.panels.log_panel import LogPanel
+from gui.panels.setup_panel import SetupPanel
+from gui.panels.sound_panel import SoundPanel
+from gui.synth_controller import SynthController
+from gui.widgets import disable_all_slider_scrolling
 
 
 class SynthApp(ctk.CTk):
     """Main window: composes the panels and wires them to the controller.
 
     The app implements the `ControllerView` protocol, i.e. it forwards the controller's
-    UI requests (refresh, sync, log) to the panels which own the widgets.
+    GUI requests (refresh, sync, log) to the panels which own the widgets.
 
     Attributes:
         controller (SynthController): Application logic, owns config, synth state and router.
@@ -69,7 +69,7 @@ class SynthApp(ctk.CTk):
         self.controller.attach_view(self)
         self.midi_handler = MidiInputHandler()
 
-        self._build_ui()
+        self._build_gui()
         disable_all_slider_scrolling(self)
         self.focus_set()
         self.keyboard_panel.bind_keys()
@@ -81,7 +81,7 @@ class SynthApp(ctk.CTk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-    def _build_ui(self) -> None:
+    def _build_gui(self) -> None:
         """Build up the high level layout: connection, scrollable controls and log."""
 
         controller = self.controller
@@ -131,7 +131,7 @@ class SynthApp(ctk.CTk):
         self.log_panel.frame.grid(row=2, column=0, padx=16, pady=(0, 16), sticky="ew")
 
     # ------------------------------------------------------------------
-    # ControllerView: UI requests of the controller
+    # ControllerView: GUI requests of the controller
     # ------------------------------------------------------------------
 
     def log(self, message: str) -> None:

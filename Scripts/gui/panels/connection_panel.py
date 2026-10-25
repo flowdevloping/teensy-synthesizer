@@ -6,8 +6,8 @@ import customtkinter as ctk
 
 from playback.teensy.serial_client import list_serial_ports
 from storage.config_store import AppConfig
-from ui.midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
-from ui.synth_controller import SynthController
+from gui.midi_input import MidiCallbacks, MidiInputHandler, list_midi_ports
+from gui.synth_controller import SynthController
 
 
 class ConnectionPanel:

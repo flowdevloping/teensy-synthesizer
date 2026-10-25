@@ -2,7 +2,7 @@
 
 The controller contains everything that is not widget code: the note lifecycle,
 reactions to parameter changes, presets, setup application and config persistence.
-It never touches a widget directly. UI updates go through the `ControllerView`
+It never touches a widget directly. GUI updates go through the `ControllerView`
 protocol, which `SynthApp` implements.
 
 Typical flow of a parameter change (e.g. the volume slider):
@@ -35,7 +35,7 @@ from synth.waveforms import (
 
 
 class ControllerView(Protocol):
-    """UI hooks the controller needs. Implemented by `SynthApp`."""
+    """GUI hooks the controller needs. Implemented by `SynthApp`."""
 
     def log(self, message: str) -> None:
         """Append a line to the event log."""
@@ -63,7 +63,7 @@ class ControllerView(Protocol):
 
 
 class SynthController:
-    """Coordinates synth state, output routing, config persistence and the UI.
+    """Coordinates synth state, output routing, config persistence and the GUI.
 
     Args:
         config (AppConfig): Persisted GUI settings.
@@ -75,7 +75,7 @@ class SynthController:
         config (AppConfig): Persisted GUI settings.
         state (SynthState): Shared synth state.
         router (OutputRouter): Sends events to the Teensy or the local engine.
-        view (ControllerView | None): The UI, set via `attach_view`.
+        view (ControllerView | None): The GUI, set via `attach_view`.
     """
 
     def __init__(
@@ -132,11 +132,11 @@ class SynthController:
         return cls(config, synth_state, SerialClient(), LocalAudioEngine())
 
     def attach_view(self, view: ControllerView) -> None:
-        """Connect the UI. Must happen before the first event is processed."""
+        """Connect the GUI. Must happen before the first event is processed."""
         self.view = view
 
     # ------------------------------------------------------------------
-    # UI delegates
+    # GUI delegates
     # ------------------------------------------------------------------
 
     def log(self, message: str) -> None:
@@ -145,7 +145,7 @@ class SynthController:
             self.view.log(message)
 
     def refresh_display(self) -> None:
-        """Ask the UI to update all displayed values."""
+        """Ask the GUI to update all displayed values."""
         if self.view is not None:
             self.view.refresh_display()
 

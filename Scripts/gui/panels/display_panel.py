@@ -4,7 +4,7 @@ import customtkinter as ctk
 
 from synth.safety_limits import DEFAULT_VOLUME_PCT
 from synth.synth_state import SynthState
-from ui.widgets import create_value_block
+from gui.widgets import create_value_block
 
 
 class DisplayPanel:

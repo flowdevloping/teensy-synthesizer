@@ -19,8 +19,8 @@ from synth.safety_limits import (
     clamp_lfo_depth_pct,
     clamp_lfo_rate,
 )
-from ui.synth_controller import SynthController
-from ui.widgets import (
+from gui.synth_controller import SynthController
+from gui.widgets import (
     add_labeled_slider,
     add_teensy_only_hint,
     set_entry_text,
@@ -48,7 +48,7 @@ class LfoPanel:
 
         self._lfo_drag_index: int | None = None
         self._lfo_table_send_after: object | None = None
-        self._lfo_ui_syncing = False
+        self._lfo_gui_syncing = False
         self._lfo_preset_buttons: dict[str, ctk.CTkButton] = {}
 
         self.frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -184,7 +184,7 @@ class LfoPanel:
         self.controller.send_lfo_table()
 
     def _on_interp_changed(self, value: str) -> None:
-        if self._lfo_ui_syncing:
+        if self._lfo_gui_syncing:
             return
         self.state.lfo_interp = lfo_interp_from_label(value)
         self.state.rebuild_lfo_from_points(mark_custom=True)
@@ -198,7 +198,7 @@ class LfoPanel:
 
     def sync_waveform(self) -> None:
         """Highlight the active preset / interpolation and redraw the canvas."""
-        self._lfo_ui_syncing = True
+        self._lfo_gui_syncing = True
         active = self.state.lfo_preset
         for name, button in self._lfo_preset_buttons.items():
             if name == active:
@@ -207,7 +207,7 @@ class LfoPanel:
                 button.configure(fg_color="gray30", hover_color="gray40")
         self.lfo_interp_var.set(lfo_interp_label(self.state.lfo_interp))
         self._draw_canvas()
-        self._lfo_ui_syncing = False
+        self._lfo_gui_syncing = False
 
     def sync_controls(self) -> None:
         """Move sliders and the waveform view to the values of the synth state."""

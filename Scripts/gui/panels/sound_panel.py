@@ -4,11 +4,11 @@ import customtkinter as ctk
 
 from synth.safety_limits import MAX_VOLUME_PCT, clamp_volume_pct
 from synth.synth_mode_presets import FM_PRESETS
-from ui.panels.filter_panel import FilterPanel
-from ui.panels.fm_panel import FmPanel
-from ui.panels.lfo_panel import LfoPanel
-from ui.synth_controller import SynthController
-from ui.widgets import set_entry_text, wire_slider_entry
+from gui.panels.filter_panel import FilterPanel
+from gui.panels.fm_panel import FmPanel
+from gui.panels.lfo_panel import LfoPanel
+from gui.synth_controller import SynthController
+from gui.widgets import set_entry_text, wire_slider_entry
 
 
 class SoundPanel:
