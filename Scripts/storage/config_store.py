@@ -1,5 +1,4 @@
-"""Test []
-Manage the loading and saving of app configuration."""
+"""Manage the loading and saving of app configuration."""
 
 import json
 from dataclasses import dataclass, field

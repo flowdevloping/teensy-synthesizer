@@ -1,5 +1,4 @@
-"""Test []
-Handles serial connection to Teensy, voice slots allocation and release, packet sending, and watchdog functionality."""
+"""Handles serial connection to Teensy, voice slots allocation and release, packet sending, and watchdog functionality."""
 
 import queue
 import threading
