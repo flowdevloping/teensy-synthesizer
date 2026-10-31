@@ -1,7 +1,6 @@
 """FM panel: carrier waveform, modulator mode / frequency / ratio and modulation depth."""
 
 import customtkinter as ctk
-
 from synth.safety_limits import (
     MAX_MOD_DEPTH_PCT,
     MAX_MODULATOR_HZ,
@@ -15,6 +14,7 @@ from synth.waveforms import (
     carrier_waveform_labels,
     is_wavetable_carrier,
 )
+
 from gui.synth_controller import SynthController
 from gui.widgets import add_labeled_slider, set_entry_text, wire_slider_entry
 
@@ -184,7 +184,7 @@ class FmPanel:
         pct = self.state.mod_depth_pct
         if is_wavetable_carrier(self.state.carrier_waveform):
             return f"Morph: {pct} %"
-        return f"Modulator depth (FM intensity): {pct} %"
+        return f"Modulation Depth: {pct} %"
 
     # Shows the active carrier: Either one of the basic waveforms or the Teensy wavetable
     def sync_carrier_waveform(self) -> None:

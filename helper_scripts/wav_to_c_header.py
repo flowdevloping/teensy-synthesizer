@@ -10,19 +10,8 @@ import numpy as np
 from scipy.io import wavfile
 from scipy.signal import resample
 
-wav_path = (
-    Path(__file__).resolve().parents[1]
-    / "wavetables"
-    / "Free_Wavetables-2048-44_1khz-32bit"
-    / "Additive_Synth"
-    / "Add_Synth1.wav"
-)
-out_path = (
-    Path(__file__).resolve().parents[1]
-    / "firmware"
-    / "teensy_synth"
-    / "CustomWavetable.h"
-)
+wav_path = Path(__file__).resolve().parents[1] / "wavetables" / "Add_Synth1.wav"
+out_path = Path(__file__).resolve().parents[1] / "Scripts-Teensy" / "CustomWavetable.h"
 
 # 1. Read in the .wav file
 rate, data = wavfile.read(wav_path)
