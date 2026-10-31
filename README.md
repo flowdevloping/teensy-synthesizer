@@ -199,7 +199,7 @@ The application is split into layers. Data flows from the GUI down to the sound 
 | `Scripts/`         | The Python application (GUI, synth logic, sound output, conlang, storage). Start it with `python Scripts/app.py`.                                                                                                 |
 | `Scripts-Teensy/`  | Firmware for the Teensy 4.1 (Arduino/Teensyduino sketch). Must be flashed to the Teensy separately, it is not run by the Python app.                                                                              |
 | `setups-synth/`    | Saved synth setups as .json (written by the Setup panel in the GUI). `Default.json` and the `Setup-*.json` files are example setups.                                                                              |
-| `visuals/`         | Visuals used in this README (GUI screenshot, hardware setup, signal path `Synth.png`).                                                                                                                            |
+| `visuals/`         | Visuals used in this README (GUI screenshot, hardware setup, signal path `Setup-Teensy_Audio_Library.png`).                                                                                                                            |
 | `.gitignore`       | Files that stay out of git (virtual environment, `config-gui.json`, wavetable source files, ...).                                                                                                                 |
 | `config-gui.json`  | Last used GUI settings (serial port, MIDI port, sliders, ...).                                                                                                                                                    |
 | `requirements.txt` | Python packages needed by the application.                                                                                                                                                                        |
@@ -243,7 +243,7 @@ The application is split into layers. Data flows from the GUI down to the sound 
 | `AudioLfo.h` | Own Teensy Audio Library object: LFO that plays the table uploaded from the GUI. |
 | `AudioWavetable.h` | Own Teensy Audio Library object: wavetable oscillator with morphing between waveforms. |
 | `CustomWavetable.h` | Generated wavetable data (created by `helper_scripts/wav_to_c_header.py`). Do not edit by hand. |
-| `teensy_synth.ino` | Main sketch: 8-voice FM/wavetable synthesizer. Reads packets from USB serial, outputs audio over I2S, controls the amplifier shutdown pin (23). The signal path is described at the top of the file and in `visuals/Synth.png`. |
+| `teensy_synth.ino` | Main sketch: 8-voice FM/wavetable synthesizer. Reads packets from USB serial, outputs audio over I2S, controls the amplifier shutdown pin (23). The signal path is described at the top of the file and in `visuals/Setup-Teensy_Audio_Library.png`. |
 
 ### `helper_scripts/`
 
@@ -259,23 +259,29 @@ The application is split into layers. Data flows from the GUI down to the sound 
 
 ## More Notes
 
-Current Setup: 8 Voice polyphonic FM or wavetable synth with LFO oscillator and Filter.
+### Teensy Audio Library Setup
 
-![Teensy Audio Library Setup](visuals/Synth.png)
+Current Setup: 8 Voice polyphonic FM or wavetable synth with LFO oscillator and Filter, see here:
 
-Scheme: [Teensy Audio Library Object Name]_([Name of the variable in teensy_synth.ino])
+![Teensy Audio Library Setup](visuals/Setup-Teensy_Audio_Library.png)
 
-- AudioSynthWaveformSine_(modulator): Modulation frequency as sinus waveform with configurable frequency.
-- AudioSynthWaveformModulated_(carrier): Carrier frequency. Waveform choosable: 'sine', 'saw', 'square', 'triangle'. Choosing 'wavetable stored on Teensy' switches the synthesis mode from FM to wavetable.
-- AudioWavetable_(wavetable): Audio source that is activated, if 'wavetable stored on Teensy' is chosen as carrier waveform in the GUI. Slider of 'Modulation Depth' switches to 'Morph'. Therefore the morph of the wavetable synthesis can be adjusted. 
-- AudioMixer4_(source_mixer): Mixer object to enable switching between FM and wavetable synthesis.
-- AudioEffectEnvelope_(envelope): Envelope object (Delay, Attack, Hold, Decay, Sustain, Release).
-- AudioMixer4_(voice_mixer_[a/b]): Mixer object that handles routing of the voices that are played. This object exists only with 4 inputs atm, therefore this setup uses 2 of them to enable 8 voice polyphonic sound synthesis.
-- AudioMixer4_(sum_mixer): Mixer object to generate a mono signal out of the 2 inputs.
-- AudioLFO_(lfo): Custom AudioStream object to enable LFO functionality, defined in Scripts-Teensy/AudioLfo.h. It modulates the cutoff frequency of global_filter. 
-- AudioFilterStateVariable_(global_filter): Lowpass filter with configurable cutoff frequency and resonance (Q).
-- AudioAmplifier_(volume_amp): Amplifies or attentuates the signal.
-- AudioOutputI2S2_(i2s2_output): Audio output (I2S on port 2). If you change the wire setup, e.g. you want to use I2S on port 1 of the Teensy, you have to change to AudioOutputI2S.
+### Description of the Audio Objects
+
+Here i provide a brief description of the TAL objects i used for this setup.
+
+| Audio Object<br>`[Teensy Audio Library Object Name]_([Name of the variable in teensy_synth.ino])` | Purpose                                                                                                                                                                                                                     |
+| :--------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AudioSynthWaveformSine_(modulator)`                                                           | Modulation frequency as sinus waveform with configurable frequency.                                                                                                                                                         |
+| `AudioSynthWaveformModulated_(carrier)`                                                        | Carrier frequency. Waveform choosable: 'sine', 'saw', 'square', 'triangle'. Choosing 'wavetable stored on Teensy' switches the synthesis mode from FM to wavetable.                                                         |
+| `AudioWavetable_(wavetable)`                                                                   | Audio source that is activated, if 'wavetable stored on Teensy' is chosen as carrier waveform in the GUI. Slider of 'Modulation Depth' switches to 'Morph'. Therefore the morph of the wavetable synthesis can be adjusted. |
+| `AudioMixer4_(source_mixer)`                                                                   | Mixer object to enable switching between FM and wavetable synthesis.                                                                                                                                                        |
+| `AudioEffectEnvelope_(envelope)`                                                               | Envelope object (Delay, Attack, Hold, Decay, Sustain, Release).                                                                                                                                                             |
+| `AudioMixer4_(voice_mixer_[a/b])`                                                              | Mixer object that handles routing of the voices that are played. This object exists only with 4 inputs atm, therefore this setup uses 2 of them to enable 8 voice polyphonic sound synthesis.                               |
+| `AudioMixer4_(sum_mixer)`                                                                      | Mixer object to generate a mono signal out of the 2 inputs.                                                                                                                                                                 |
+| `AudioLFO_(lfo)`                                                                               | Custom AudioStream object to enable LFO functionality, defined in Scripts-Teensy/AudioLfo.h. It modulates the cutoff frequency of global_filter.                                                                            |
+| `AudioFilterStateVariable_(global_filter)`                                                     | Lowpass filter with configurable cutoff frequency and resonance (Q).                                                                                                                                                        |
+| `AudioAmplifier_(volume_amp)`                                                                  | Amplifies or attentuates the signal.                                                                                                                                                                                        |
+| `AudioOutputI2S2_(i2s2_output)`                                                                | Audio output (I2S on port 2). If you change the wire setup, e.g. you want to use I2S on port 1 of the Teensy, you have to change to AudioOutputI2S.                                                                         |
 
 For more detailed information on the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html), refer to the documentation.
 
