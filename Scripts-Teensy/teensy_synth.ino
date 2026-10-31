@@ -30,6 +30,7 @@
 
 AudioSynthWaveformSine          modulator_0, modulator_1, modulator_2, modulator_3;
 AudioSynthWaveformSine          modulator_4, modulator_5, modulator_6, modulator_7;
+
 AudioSynthWaveformModulated     carrier_0, carrier_1, carrier_2, carrier_3;
 AudioSynthWaveformModulated     carrier_4, carrier_5, carrier_6, carrier_7;
 
@@ -41,15 +42,18 @@ AudioMixer4                     source_mixer_4, source_mixer_5, source_mixer_6, 
 
 AudioEffectEnvelope             envelope_0, envelope_1, envelope_2, envelope_3;
 AudioEffectEnvelope             envelope_4, envelope_5, envelope_6, envelope_7;
+
 AudioMixer4                     voice_mixer_a;  // voices 0-3
 AudioMixer4                     voice_mixer_b;  // voices 4-7
+
 AudioMixer4                     sum_mixer;      // sum of voice_mixer_a and voice_mixer_b
 
-// Global LFO + filter: the LFO modulates the filter cutoff (shared by all 8 voices).
 AudioLfo                        lfo;
+
 AudioFilterStateVariable        global_filter;
 
 AudioAmplifier                  volume_amp;
+
 AudioOutputI2S2                 i2s2_output;
 
 AudioConnection patch_mod_car_0(modulator_0, 0, carrier_0, 0);
