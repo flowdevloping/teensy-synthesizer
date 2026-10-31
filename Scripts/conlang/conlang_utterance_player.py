@@ -7,17 +7,20 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from synth.safety_limits import clamp_carrier_hz
+
 from conlang.conlang_lexicon import (
     WORD_GAP_MS,
     Lexeme,
     Phoneme,
     resolve_lexemes,
 )
-from synth.safety_limits import clamp_carrier_hz
 
 CONLANG_VOICE_ID = "conlang:0"
 GLIDE_STEP_MS = 16
-WARBLES_DEPTH_RATIO = 0.06
+WARBLES_DEPTH_RATIO = (
+    0.06  # the frequency steps through `0`, `+6%`, `0`, `-6%` of the start frequency
+)
 ACTION_NOTE_ON = "note_on"
 ACTION_RETUNE = "retune"
 ACTION_NOTE_OFF = "note_off"
