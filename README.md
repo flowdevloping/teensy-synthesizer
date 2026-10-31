@@ -79,7 +79,8 @@ python Scripts/app.py # Start the application
 #### macOS
 
 > Note: Not tested as i got no macOS system.
-> Installation/Setup: 
+
+Installation/Setup: 
 
 ```bash
 python3 -m venv .venv # Create virtual environment
