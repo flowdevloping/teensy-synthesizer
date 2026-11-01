@@ -10,8 +10,8 @@ Outline:
 - [Information about Teensy Audio Library](#information-about-teensy-audio-library)
 - [Conlang Functionality](#conlang-functionality)
 
-Usage is possible either while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the Audio Module or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
-It is also possible to use a MIDI Keyboard as input device. 
+Usage is possible either while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the audio module or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
+It is also possible to use a MIDI keyboard as input device. 
 
 ## Images:
 
