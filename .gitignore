@@ -36,14 +36,10 @@ config-gui.json
 
 # Logs and temporary audio exports
 *.log
-*.wav
 *.tmp
 
 # Wavetables 
 wavetables/Free_Wavetables-2048-44_1khz-32bit/
-
-# Teensy Audio Library Exports
-teensy_audio_library-exports/
 
 # Clangd (c++ language server) configs
 .clangd
