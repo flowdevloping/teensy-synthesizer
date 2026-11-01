@@ -3,11 +3,15 @@
 This repository contains information and documentation for Teensy Audio Module for the Sonic HRI Project.
 
 Outline: 
-[Getting Started](#Getting Started)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [Project Structure](#project-structure)
+- [Hardware Setup](#hardware-setup)
+- [Information about Teensy Audio Library](#information-about-teensy-audio-library)
+- [Conlang Functionality](#conlang-functionality)
 
-Python application for corresponding Teensy Audio Module. 
-Usage is possible either while being connected to the Teensy Audio Module or while not being connected to it, playing the sound on the *Local Device* (Details: [Usage](#usage)). 
-It is also possible to use a *MIDI Keyboard* as input device. 
+Usage is possible either while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the Audio Module or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
+It is also possible to use a MIDI Keyboard as input device. 
 
 ## Images:
 
@@ -129,61 +133,6 @@ While not being connected to the Audio Module, your local device takes care of t
 
 Connect MIDI-Keyboard to your local device , then you will be able to connect it in the GUI indicated in the field `MIDI-Port`.
 
-## Conlang Functionality
-
-A small constructed language (conlang) can be played. Vocabulary lives in `Scripts/conlang/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
-
-### Building blocks
-
-Three dataclasses:
-
-- **Phoneme** — one sound. Current helpers: `_beep`, `_glide`, `_warble`.
-- **Lexeme** — a word, a sequence of phonemes (e.g. `hello`, `human`, `yes`, `no`).
-- **Utterance** — a phrase, a sequence of lexemes (e.g. `greet_human` = "Hallo, Mensch", `acknowledge` = "Verstanden").
-
-Define words in the `LEXEMES` dict:
-
-```python
-"hello": Lexeme(
-        "hello",
-        "Hallo",
-        (
-            _beep(1650, 55, 30),
-            _glide(1500, 2100, 110, 25),
-            _beep(1900, 60, 40),
-        ),
-    ),
-```
-
-Define phrases in the `UTTERANCES` dict, e.g. `"greet_human": Utterance("greet_human", "Hallo, Mensch", ("hello", "human"))`.
-
-### Phoneme parameters
-
-- `_beep(hz, duration_ms, gap_after_ms=30)` — steady tone
-- `_glide(start_hz, end_hz, duration_ms, gap_after_ms=30)` — frequency ramp
-- `_warble(hz, duration_ms, gap_after_ms=30)` — tone that oscillates around `hz`
-
-### Timing
-
-- `gap_after_ms` is silence after each phoneme (default 30 ms).
-- `WORD_GAP_MS` (120 ms) is extra silence between lexemes in an utterance, on top of `gap_after_ms`.
-- Glide and warble are stepped retunes every `GLIDE_STEP_MS` (16 ms).
-- Warble depth is `WARBLES_DEPTH_RATIO` (0.06): the frequency steps through `0`, `+6%`, `0`, `-6%` of the start frequency.
-
-### Playback
-
-```mermaid
-flowchart LR
-  utterance["Utterance lexeme ids"] --> compile["compile_utterance()"]
-  compile --> events["TimedEvents"]
-  events --> player["UtterancePlayer schedules via Tkinter after"]
-  player --> gui["gui.py callbacks"]
-  gui --> synth["note_on / retune / note_off on voice conlang:0"]
-```
-
-- `compile_utterance` turns lexeme ids into timed events (`note_on`, `retune`, `note_off`).
-- `UtterancePlayer` schedules those events; the GUI synth callbacks produce the audio.
-- Playback goes through the GUI callbacks wired in `Scripts/gui/gui.py`: `on_note_on` → `_note_on`, `on_retune` → `_retune_voice`, `on_note_off` → `_note_off`, all on voice `conlang:0`. `retune` keeps the tone sounding and only changes its frequency (used by glide and warble).
 
 ## Project Structure
 
@@ -260,7 +209,12 @@ The application is split into layers. Data flows from the GUI down to the sound 
 - **Where new things belong.** A new GUI area is a new module in `Scripts/gui/panels/`. Logic that reacts to the GUI belongs in `gui/synth_controller.py`, not in the panel. A new parameter needs a limit and a `clamp_`* function in `synth/safety_limits.py`, a field in `synth/synth_state.py`, and (if it should survive a restart) an entry in `storage/config_store.py`.
 - **Every sound feature needs two implementations.** Once for the Teensy (firmware) and once for local playback (`playback/local/engines/fm_engine.py`), so the app also works without hardware. Right now the app is in a state where the LFO functionality can only be executed on the Teensy, as this functionality is not implemented in the Python app for local playback yet.
 
-## More Notes
+
+## Hardware Setup
+
+
+
+## Information about Teensy Audio Library
 
 ### Teensy Audio Library Setup
 
@@ -287,6 +241,64 @@ Here i provide a brief description of the TAL objects i used for this setup.
 | `AudioOutputI2S2_(i2s2_output)`                                                                | Audio output (I2S on port 2). If you change the wire setup, e.g. you want to use I2S on port 1 of the Teensy, you have to change to AudioOutputI2S.                                                                         |
 
 For more detailed information on the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html), refer to the documentation.
+
+
+## Conlang Functionality
+
+A small constructed language (conlang) can be played. Vocabulary lives in `Scripts/conlang/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
+
+### Building blocks
+
+Three dataclasses:
+
+- **Phoneme** — one sound. Current helpers: `_beep`, `_glide`, `_warble`.
+- **Lexeme** — a word, a sequence of phonemes (e.g. `hello`, `human`, `yes`, `no`).
+- **Utterance** — a phrase, a sequence of lexemes (e.g. `greet_human` = "Hallo, Mensch", `acknowledge` = "Verstanden").
+
+Define words in the `LEXEMES` dict:
+
+```python
+"hello": Lexeme(
+        "hello",
+        "Hallo",
+        (
+            _beep(1650, 55, 30),
+            _glide(1500, 2100, 110, 25),
+            _beep(1900, 60, 40),
+        ),
+    ),
+```
+
+Define phrases in the `UTTERANCES` dict, e.g. `"greet_human": Utterance("greet_human", "Hallo, Mensch", ("hello", "human"))`.
+
+### Phoneme parameters
+
+- `_beep(hz, duration_ms, gap_after_ms=30)` — steady tone
+- `_glide(start_hz, end_hz, duration_ms, gap_after_ms=30)` — frequency ramp
+- `_warble(hz, duration_ms, gap_after_ms=30)` — tone that oscillates around `hz`
+
+### Timing
+
+- `gap_after_ms` is silence after each phoneme (default 30 ms).
+- `WORD_GAP_MS` (120 ms) is extra silence between lexemes in an utterance, on top of `gap_after_ms`.
+- Glide and warble are stepped retunes every `GLIDE_STEP_MS` (16 ms).
+- Warble depth is `WARBLES_DEPTH_RATIO` (0.06): the frequency steps through `0`, `+6%`, `0`, `-6%` of the start frequency.
+
+### Playback
+
+```mermaid
+flowchart LR
+  utterance["Utterance lexeme ids"] --> compile["compile_utterance()"]
+  compile --> events["TimedEvents"]
+  events --> player["UtterancePlayer schedules via Tkinter after"]
+  player --> gui["gui.py callbacks"]
+  gui --> synth["note_on / retune / note_off on voice conlang:0"]
+```
+
+- `compile_utterance` turns lexeme ids into timed events (`note_on`, `retune`, `note_off`).
+- `UtterancePlayer` schedules those events; the GUI synth callbacks produce the audio.
+- Playback goes through the GUI callbacks wired in `Scripts/gui/gui.py`: `on_note_on` → `_note_on`, `on_retune` → `_retune_voice`, `on_note_off` → `_note_off`, all on voice `conlang:0`. `retune` keeps the tone sounding and only changes its frequency (used by glide and warble).
+  
 
 ## Contact
 
