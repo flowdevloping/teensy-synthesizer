@@ -5,10 +5,8 @@ This repository contains information and documentation for Teensy Audio Module f
 Outline: 
 - [Getting Started](#getting-started)
 - [Usage](#usage)
-- [Project Structure](#project-structure)
+- [Code](#code)
 - [Hardware Setup](#hardware-setup)
-- [Information about Teensy Audio Library](#information-about-teensy-audio-library)
-- [Conlang Functionality](#conlang-functionality)
 
 Usage is possible either while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the audio module or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
 It is also possible to use a MIDI keyboard as input device. 
@@ -134,7 +132,9 @@ While not being connected to the Audio Module, your local device takes care of t
 Connect MIDI-Keyboard to your local device , then you will be able to connect it in the GUI indicated in the field `MIDI-Port`.
 
 
-## Project Structure
+## Code
+
+### Project Structure
 
 High level overview of all folders and files. `__init__.py` files (empty package markers) are left out.
 
@@ -142,7 +142,7 @@ The application is split into layers. Data flows from the GUI down to the sound 
 
 `gui/` (panels + `synth_controller.py`) → `synth/` (state and rules) → `playback/output_router.py` → Teensy (`playback/teensy/`) **or** local sound (`playback/local/`)
 
-### Top level
+#### Top level
 
 | Folder or File     | Purpose                                                                                                                                                                                                           |
 | :----------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -156,7 +156,7 @@ The application is split into layers. Data flows from the GUI down to the sound 
 | `config-gui.json`  | Last used GUI settings (serial port, MIDI port, sliders, ...).                                                                                                                                                    |
 | `requirements.txt` | Python packages needed by the application.                                                                                                                                                                        |
 
-### `Scripts/` (Code for Pyhton Application)
+#### `Scripts/` (Code for Pyhton Application)
 
 | Folder or File                        | Purpose                                                                                                                                                                                                                                                                                                                         |
 | :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -188,7 +188,7 @@ The application is split into layers. Data flows from the GUI down to the sound 
 | `synth/waveforms.py`                  | Carrier waveform names and their IDs. IDs 0-3 match objects of the Teensy Audio Library, 4 is the wavetable on the Teensy.                                                                                                                                                                                                      |
 | `app.py`                              | Entry point. Calls `run_app()` from `gui/gui.py`.                                                                                                                                                                                                                                                                               |
 
-### Scripts-Teensy/ (Firmware Code for Teensy)
+#### Scripts-Teensy/ (Firmware Code for Teensy)
 
 | Folder or File | Purpose |
 | :--- | :--- |
@@ -197,57 +197,18 @@ The application is split into layers. Data flows from the GUI down to the sound 
 | `CustomWavetable.h` | Generated wavetable data (created by `helper_scripts/wav_to_c_header.py`). Do not edit by hand. |
 | `teensy_synth.ino` | Main sketch: 8-voice FM/wavetable synthesizer. Reads packets from USB serial, outputs audio over I2S, controls the amplifier shutdown pin (23). The signal path is described at the top of the file and in `visuals/Setup-Teensy_Audio_Library.png`. |
 
-### `helper_scripts/`
+#### `helper_scripts/`
 
 | Folder or File       | Purpose                                                              |
 | :------------------- | :------------------------------------------------------------------- |
 | `wav_to_c_header.py` | Converts a `.wav` wavetable into `Scripts-Teensy/CustomWavetable.h`. |
 
-### Notes for continuing the project
 
-- **Python and firmware share a protocol.** `Scripts/playback/teensy/protocol.py` builds the packets and `Scripts-Teensy/teensy_synth.ino` parses them (note packets, `L` for LFO and filter, `W` for the LFO table). If you change a packet in one place, change it in the other and flash the Teensy again.
-- **Where new things belong.** A new GUI area is a new module in `Scripts/gui/panels/`. Logic that reacts to the GUI belongs in `gui/synth_controller.py`, not in the panel. A new parameter needs a limit and a `clamp_`* function in `synth/safety_limits.py`, a field in `synth/synth_state.py`, and (if it should survive a restart) an entry in `storage/config_store.py`.
-- **Every sound feature needs two implementations.** Once for the Teensy (firmware) and once for local playback (`playback/local/engines/fm_engine.py`), so the app also works without hardware. Right now the app is in a state where the LFO functionality can only be executed on the Teensy, as this functionality is not implemented in the Python app for local playback yet.
-
-
-## Hardware Setup
-
-
-
-## Information about Teensy Audio Library
-
-### Teensy Audio Library Setup
-
-Current Setup: 8 Voice polyphonic FM or wavetable synth with LFO oscillator and Filter, see here:
-
-![Teensy Audio Library Setup](visuals/Setup-Teensy_Audio_Library.png)
-
-### Description of the Audio Objects
-
-Here i provide a brief description of the TAL objects i used for this setup.
-
-| Audio Object<br>`[Teensy Audio Library Object Name]_([Name of the variable in teensy_synth.ino])` | Purpose                                                                                                                                                                                                                     |
-| :--------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AudioSynthWaveformSine_(modulator)`                                                           | Modulation frequency as sinus waveform with configurable frequency.                                                                                                                                                         |
-| `AudioSynthWaveformModulated_(carrier)`                                                        | Carrier frequency. Waveform choosable: 'sine', 'saw', 'square', 'triangle'. Choosing 'wavetable stored on Teensy' switches the synthesis mode from FM to wavetable.                                                         |
-| `AudioWavetable_(wavetable)`                                                                   | Audio source that is activated, if 'wavetable stored on Teensy' is chosen as carrier waveform in the GUI. Slider of 'Modulation Depth' switches to 'Morph'. Therefore the morph of the wavetable synthesis can be adjusted. |
-| `AudioMixer4_(source_mixer)`                                                                   | Mixer object to enable switching between FM and wavetable synthesis.                                                                                                                                                        |
-| `AudioEffectEnvelope_(envelope)`                                                               | Envelope object (Delay, Attack, Hold, Decay, Sustain, Release).                                                                                                                                                             |
-| `AudioMixer4_(voice_mixer_[a/b])`                                                              | Mixer object that handles routing of the voices that are played. This object exists only with 4 inputs atm, therefore this setup uses 2 of them to enable 8 voice polyphonic sound synthesis.                               |
-| `AudioMixer4_(sum_mixer)`                                                                      | Mixer object to generate a mono signal out of the 2 inputs.                                                                                                                                                                 |
-| `AudioLFO_(lfo)`                                                                               | Custom AudioStream object to enable LFO functionality, defined in Scripts-Teensy/AudioLfo.h. It modulates the cutoff frequency of global_filter.                                                                            |
-| `AudioFilterStateVariable_(global_filter)`                                                     | Lowpass filter with configurable cutoff frequency and resonance (Q).                                                                                                                                                        |
-| `AudioAmplifier_(volume_amp)`                                                                  | Amplifies or attentuates the signal.                                                                                                                                                                                        |
-| `AudioOutputI2S2_(i2s2_output)`                                                                | Audio output (I2S on port 2). If you change the wire setup, e.g. you want to use I2S on port 1 of the Teensy, you have to change to AudioOutputI2S.                                                                         |
-
-For more detailed information on the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html), refer to the documentation.
-
-
-## Conlang Functionality
+### Conlang Functionality
 
 A small constructed language (conlang) can be played. Vocabulary lives in `Scripts/conlang/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang/conlang_utterance_player.py` and then sent through the same synth voice as keyboard notes.
 
-### Building blocks
+#### Building blocks
 
 Three dataclasses:
 
@@ -271,20 +232,20 @@ Define words in the `LEXEMES` dict:
 
 Define phrases in the `UTTERANCES` dict, e.g. `"greet_human": Utterance("greet_human", "Hallo, Mensch", ("hello", "human"))`.
 
-### Phoneme parameters
+#### Phoneme parameters
 
 - `_beep(hz, duration_ms, gap_after_ms=30)` — steady tone
 - `_glide(start_hz, end_hz, duration_ms, gap_after_ms=30)` — frequency ramp
 - `_warble(hz, duration_ms, gap_after_ms=30)` — tone that oscillates around `hz`
 
-### Timing
+#### Timing
 
 - `gap_after_ms` is silence after each phoneme (default 30 ms).
 - `WORD_GAP_MS` (120 ms) is extra silence between lexemes in an utterance, on top of `gap_after_ms`.
 - Glide and warble are stepped retunes every `GLIDE_STEP_MS` (16 ms).
 - Warble depth is `WARBLES_DEPTH_RATIO` (0.06): the frequency steps through `0`, `+6%`, `0`, `-6%` of the start frequency.
 
-### Playback
+#### Playback
 
 ```mermaid
 flowchart LR
@@ -298,6 +259,59 @@ flowchart LR
 - `compile_utterance` turns lexeme ids into timed events (`note_on`, `retune`, `note_off`).
 - `UtterancePlayer` schedules those events; the GUI synth callbacks produce the audio.
 - Playback goes through the GUI callbacks wired in `Scripts/gui/gui.py`: `on_note_on` → `_note_on`, `on_retune` → `_retune_voice`, `on_note_off` → `_note_off`, all on voice `conlang:0`. `retune` keeps the tone sounding and only changes its frequency (used by glide and warble).
+
+
+### Information about Teensy Audio Library
+
+#### Teensy Audio Library Setup
+
+Current Setup: 8 Voice polyphonic FM or wavetable synth with LFO oscillator and Filter, see here:
+
+![Teensy Audio Library Setup](visuals/Setup-Teensy_Audio_Library.png)
+
+#### Description of the Audio Objects
+
+Here i provide a brief description of the TAL objects i used for this setup.
+
+| Audio Object<br>`[Teensy Audio Library Object Name]_([Name of the variable in teensy_synth.ino])` | Purpose                                                                                                                                                                                                                     |
+| :--------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AudioSynthWaveformSine_(modulator)`                                                           | Modulation frequency as sinus waveform with configurable frequency.                                                                                                                                                         |
+| `AudioSynthWaveformModulated_(carrier)`                                                        | Carrier frequency. Waveform choosable: 'sine', 'saw', 'square', 'triangle'. Choosing 'wavetable stored on Teensy' switches the synthesis mode from FM to wavetable.                                                         |
+| `AudioWavetable_(wavetable)`                                                                   | Audio source that is activated, if 'wavetable stored on Teensy' is chosen as carrier waveform in the GUI. Slider of 'Modulation Depth' switches to 'Morph'. Therefore the morph of the wavetable synthesis can be adjusted. |
+| `AudioMixer4_(source_mixer)`                                                                   | Mixer object to enable switching between FM and wavetable synthesis.                                                                                                                                                        |
+| `AudioEffectEnvelope_(envelope)`                                                               | Envelope object (Delay, Attack, Hold, Decay, Sustain, Release).                                                                                                                                                             |
+| `AudioMixer4_(voice_mixer_[a/b])`                                                              | Mixer object that handles routing of the voices that are played. This object exists only with 4 inputs atm, therefore this setup uses 2 of them to enable 8 voice polyphonic sound synthesis.                               |
+| `AudioMixer4_(sum_mixer)`                                                                      | Mixer object to generate a mono signal out of the 2 inputs.                                                                                                                                                                 |
+| `AudioLFO_(lfo)`                                                                               | Custom AudioStream object to enable LFO functionality, defined in Scripts-Teensy/AudioLfo.h. It modulates the cutoff frequency of global_filter.                                                                            |
+| `AudioFilterStateVariable_(global_filter)`                                                     | Lowpass filter with configurable cutoff frequency and resonance (Q).                                                                                                                                                        |
+| `AudioAmplifier_(volume_amp)`                                                                  | Amplifies or attentuates the signal.                                                                                                                                                                                        |
+| `AudioOutputI2S2_(i2s2_output)`                                                                | Audio output (I2S on port 2). If you change the wire setup, e.g. you want to use I2S on port 1 of the Teensy, you have to change to AudioOutputI2S.                                                                         |
+
+For more detailed information on the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html), refer to the documentation.
+
+### Notes for continuing the project
+
+- **Python and firmware share a protocol.** `Scripts/playback/teensy/protocol.py` builds the packets and `Scripts-Teensy/teensy_synth.ino` parses them (note packets, `L` for LFO and filter, `W` for the LFO table). If you change a packet in one place, change it in the other and flash the Teensy again.
+- **Where new things belong.** A new GUI area is a new module in `Scripts/gui/panels/`. Logic that reacts to the GUI belongs in `gui/synth_controller.py`, not in the panel. A new parameter needs a limit and a `clamp_`* function in `synth/safety_limits.py`, a field in `synth/synth_state.py`, and (if it should survive a restart) an entry in `storage/config_store.py`.
+- **Every sound feature needs two implementations.** Once for the Teensy (firmware) and once for local playback (`playback/local/engines/fm_engine.py`), so the app also works without hardware. Right now the app is in a state where the LFO functionality can only be executed on the Teensy, as this functionality is not implemented in the Python app for local playback yet.
+
+
+## Hardware Setup
+
+### Pinout
+
+|        |        Teensy 4.1        |        Amplifier        |        Li-Ion Charger        |        Lipo 1S Battery        |        Loudspeaker        |
+|:------:|:------------------------:|:-----------------------:|:----------------------------:|:-----------------------------:|:-------------------------:|
+| USB 5V |        Micro USB Port    |                         |                              |                               |                           | 
+|        |        Pin 2 (OUT2)      |         DIN             |                              |                               |                           |
+|        |        Pin 3 (LRCLK2)    |         LRC             |                              |                               |                           |
+|        |        Pin 4 (BCLK2)     |         BCLK            |                              |                               |                           |
+|        |        GND               |         GND             |        OUT-                  |                               |                           |
+|        |                          |         Vin             |        OUT+                  |                               |                           |
+|        |                          |                         |        BAT+                  |        + (Red)                |                           |
+|        |                          |                         |        BAT-                  |        - (Black)              |                           |
+|        |                          |         +               |                              |                               |         +                 |
+|        |                          |         -               |                              |                               |         -                 |
   
 
 ## Contact
