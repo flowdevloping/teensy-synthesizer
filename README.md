@@ -27,6 +27,8 @@ Usage is possible either
 - or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
 It is also possible to use a MIDI keyboard as input device. 
 
+>Tested with Python 3.12
+
 ## Images:
 
 ![Screenshot of the GUI](visuals/GUI.png)
@@ -101,7 +103,7 @@ python Scripts/app.py # Start the application
 
 #### macOS
 
-> Note: Not tested as i got no macOS system.
+> Note: Not tested as I got no macOS system.
 
 Installation/Setup: 
 
@@ -189,7 +191,7 @@ High level overview of all folders and files. `__init__.py` files (empty package
 | `gui/widgets.py`                      | Shared widget helpers, e.g. slider plus entry field, value blocks.                                                                                                                                                                                                                                                              |
 | `playback/`                           | Contains functionality regarding audio playback.                                                                                                                                                                                                                                                                                |
 | `playback/local/engines/base.py`      | Shared constants (sample rate, block size) and DSP helpers (envelope, clipping).                                                                                                                                                                                                                                                |
-| `playback/local/engines/fm_engine.py` | FM synthesis on local devices (voices, modulator, envelope) calculated in handled by `sounddevice` and `numpy.`                                                                                                                                                                                                                 |
+| `playback/local/engines/fm_engine.py` | FM synthesis on local device (voices, modulator, envelope) calculated and handled with `sounddevice` and `numpy`.                                                                                                                                                                                                                 |
 | `playback/local/audio_engine.py`      | Manages the `sounddevice` (python library) output stream for local playback and hands the audio calculation to the FM engine.                                                                                                                                                                                                   |
 | `playback/teensy/protocol.py`         | Builds the text packets sent to the Teensy (note on/off, LFO, filter, LFO table). Format is documented at the top of the file.                                                                                                                                                                                                  |
 | `playback/teensy/serial_client.py`    | USB serial connection to the Teensy: connecting, voice slot allocation, sending packets, auto-reconnect watchdog (finds the Teensy again via its USB serial number).                                                                                                                                                            |
