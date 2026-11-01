@@ -1,7 +1,13 @@
-# Python GUI Application for Sonic HRI Project
+# Audio Module for Sonic HRI Project
 
-Python application for corresponding *Teensy Audio Module*. 
-Usage is possible either while being connected to the *Teensy Audio Module* or while not being connected to it, playing the sound on the *Local Device* (Details: [Usage](#usage)). 
+This repository contains information and documentation of the Teensy Audio Module for the Sonic HRI Project.
+It contains 
+- the code for the Teensy for sound synthesis utilizing the Teensy Audio Library (see [Scripts-Teensy/](#Scripts-Teensy/ (Firmware Code for Teensy))
+- the code for the corresponding Pyhton UI
+- 
+
+Python application for corresponding Teensy Audio Module. 
+Usage is possible either while being connected to the Teensy Audio Module or while not being connected to it, playing the sound on the *Local Device* (Details: [Usage](#usage)). 
 It is also possible to use a *MIDI Keyboard* as input device. 
 
 ## Images:
@@ -234,7 +240,7 @@ The application is split into layers. Data flows from the GUI down to the sound 
 | `synth/waveforms.py`                  | Carrier waveform names and their IDs. IDs 0-3 match objects of the Teensy Audio Library, 4 is the wavetable on the Teensy.                                                                                                                                                                                                      |
 | `app.py`                              | Entry point. Calls `run_app()` from `gui/gui.py`.                                                                                                                                                                                                                                                                               |
 
-### `Scripts-Teensy/` (Firmware Code for Teensy)
+### Scripts-Teensy/ (Firmware Code for Teensy)
 
 | Folder or File | Purpose |
 | :--- | :--- |
