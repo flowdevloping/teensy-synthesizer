@@ -1,10 +1,9 @@
 # Audio Module for Sonic HRI Project
 
-This repository contains information and documentation of the Teensy Audio Module for the Sonic HRI Project.
-It contains 
-- the code for the Teensy for sound synthesis utilizing the Teensy Audio Library (see [Scripts-Teensy/](#Scripts-Teensy/ (Firmware Code for Teensy))
-- the code for the corresponding Pyhton UI
-- 
+This repository contains information and documentation for Teensy Audio Module for the Sonic HRI Project.
+
+Outline: 
+[Getting Started](#Getting Started)
 
 Python application for corresponding Teensy Audio Module. 
 Usage is possible either while being connected to the Teensy Audio Module or while not being connected to it, playing the sound on the *Local Device* (Details: [Usage](#usage)). 
