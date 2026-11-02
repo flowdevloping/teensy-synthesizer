@@ -7,8 +7,6 @@ Usage is possible either
 - or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
 It is also possible to use a MIDI keyboard as input device. 
 
->Tested with Python 3.12
-
 Outline: 
 - [Images](#images)
 - [Getting Started](#getting-started)
@@ -46,6 +44,8 @@ git clone https://github.tik.uni-stuttgart.de/st200539/audio-module-project.git
 ```
 
 ### 2. Installation/Setup:
+
+> Tested with Python 3.12.
 
 Make sure you are located at the project directory:
 
