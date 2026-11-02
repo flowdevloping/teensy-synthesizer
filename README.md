@@ -30,6 +30,9 @@ Outline:
 
 ## Images:
 
+<details>
+<summary>GUI Screenshots</summary>
+
 <table>
   <tr>
     <td colspan="2" valign="top">
@@ -67,7 +70,14 @@ Outline:
   </tr>
 </table>
 
+</details>
+
+<details>
+<summary>Setup: Teensy Audio Module, GUI and MIDI Keyboard</summary>
+
 ![Image of Setup: Teensy Audio Module, GUI and MIDI Keyboard](visuals/Setup-AM-and-MIDI_Keyboard.jpg)
+
+</details>
 
 ## Getting Started
 
