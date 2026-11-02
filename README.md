@@ -121,7 +121,7 @@ python Scripts/app.py # Start the application
 ```
 
 
-### 3. Flashing the Teensy
+## 3. Flashing the Teensy
 
 Before the Teensy Audio Module can be used (described in [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module)), the code in `Scripts-Teensy/` has to be flashed to the Teensy with the [Arduino IDE](https://www.arduino.cc/en/software) (with the [Teensyduino add-on](https://www.pjrc.com/teensy/td_download.html)). This also has to be repeated after every change in `Scripts-Teensy/`.
 
