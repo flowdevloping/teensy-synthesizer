@@ -38,6 +38,12 @@ Outline:
     </td>
   </tr>
   <tr>
+    <td colspan="2" valign="top">
+      <img src="visuals/GUI-Conlang.png" alt="Screenshot of the conlang panel" width="100%">
+      <br><sub>Conlang functionality</sub>
+    </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <img src="visuals/GUI-Synth.png" alt="Screenshot of the sound synthesis configuration" width="100%">
       <br><sub>Sound synthesis configuration</sub>
@@ -51,12 +57,6 @@ Outline:
     <td colspan="2" valign="top">
       <img src="visuals/GUI-Filter.png" alt="Screenshot of the filter panel" width="100%">
       <br><sub>Filter cutoff and resonance</sub>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" valign="top">
-      <img src="visuals/GUI-Conlang.png" alt="Screenshot of the conlang panel" width="100%">
-      <br><sub>Conlang functionality</sub>
     </td>
   </tr>
   <tr>
