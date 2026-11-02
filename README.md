@@ -310,7 +310,6 @@ For more detailed information on the [Teensy Audio Library](https://www.pjrc.com
 | Microcontroller | Amplifier | LiPo Charging Module | Battery | Loudspeaker |
 |:------------------------:|:-----------------------:|:----------------------------:|:-----------------------------:|:-------------------------:|
 | Teensy 4.1      | MAX98357A | Soldered Li-Ion Charger With Protection [Link](https://github.com/SolderedElectronics/Li-ion-charger-with-protection-hardware-design) | Akyga LP753636 3.7V 1000mAh DC2509  | Visaton FRWS 5 4Ohm Impedanz |
-=======
 
 ### Pinout
 
