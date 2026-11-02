@@ -1,32 +1,67 @@
-# Python GUI Application for Sonic HRI Project 
+# Audio Module for Sonic HRI Project
 
-Python application for corresponding *Teensy Audio Module*. 
-Usage is possible either while being connected to the *Teensy Audio Module* or while not being connected to it, playing the sound on the *Local Device* (Details: [Usage](#usage)). 
-It is also possible to use a *MIDI Keyboard* as input device. 
+This repository contains information and documentation for Teensy Audio Module for the Sonic HRI Project.
+
+Usage is possible either 
+- while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the audio module
+- or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
+It is also possible to use a MIDI keyboard as input device. 
+
+>Tested with Python 3.12
+
+Outline: 
+- [Images](#images)
+- [Getting Started](#getting-started)
+  - [1. Clone Repo](#1-clone-repo)
+  - [2. Installation/Setup](#2-installationsetup)
+  - [3. Flashing the Teensy](#3-flashing-the-teensy)
+- [Usage](#usage)
+  - [Usage Option 1: Connected to the Teensy Audio Module](#usage-option-1-connected-to-the-teensy-audio-module)
+  - [Usage Option 2: Not connected to the Teensy Audio Module](#usage-option-2-not-connected-to-the-teensy-audio-module)
+  - [Usage of MIDI Keyboard](#usage-of-midi-keyboard)
+- [Code](#code)
+  - [Project Structure](#project-structure)
+  - [Conlang Functionality](#conlang-functionality)
+  - [Information about Teensy Audio Library](#information-about-teensy-audio-library)
+  - [Notes for continuing the project](#notes-for-continuing-the-project)
+- [Hardware Setup](#hardware-setup)
+  - [Components](#components)
+  - [Pinout](#pinout)
+- [Contact](#contact)
+
 
 ## Images:
+
 ![Screenshot of the GUI](visuals/GUI.png)
 ![Image of Setup: Teensy Audio Module, GUI and MIDI Keyboard](visuals/Setup-AM-and-MIDI_Keyboard.jpg)
 
+## Getting Started
 
-## Setup
 ### 1. Clone Repo
-Clone the repository at the preferred location on your *Local Device*:
+
+Clone the repository at your preferred location:
+
 ```bash
 git clone https://github.tik.uni-stuttgart.de/st200539/audio-module-project.git
 ```
 
-### 2. Installation: 
-Choose the instructions for your operating system and run the corresponding commands:
+### 2. Installation/Setup:
+
+Make sure you are located at the project directory:
+
+```bash
+cd audio-module-project
+```
+
+and run the corresponding commands dependent on your operating system:
 
 #### Windows:
 
 Installation/Setup:
 
 ```powershell
-cd audio-module-project
-python -m venv venv # Create virtual environment
-.\venv\Scripts\activate # Activate virual environment
+python -m venv .venv # Create virtual environment
+.\.venv\Scripts\activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries 
 ```
 
@@ -36,13 +71,46 @@ Start:
 python Scripts\app.py # Start the application
 ```
 
+#### Linux (Debian / Ubuntu)
+
+Installation:
+
+> Note: In Linux you may have to take this extra step to install the mentioned underlying system libraries on OS level. On Windows and macOS these system libraries are usually automatically included in the packages.
+
+```bash
+sudo apt update 
+sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound2-dev 
+```
+
+Setup:
+
+```bash
+python3 -m venv .venv # Create virtual environment
+source .venv/bin/activate # Activate virtual environment
+pip install -r requirements.txt # Install required python libraries
+```
+
+> Note: If connection to the serial port fails with the error "Permission denied" or related to that, the current Linux user is probably no member of the group "dialout", which handles serial ports. To fix that run the following command to add the user to the group "dialout". Then close and reopen the terminal or even log out and back in again to apply the changes.
+
+```bash
+sudo usermod -aG dialout "$USER"
+```
+
+Start:
+
+```bash
+python Scripts/app.py # Start the application
+```
+
 #### macOS
+
+> Note: Not tested as I got no macOS system.
 
 Installation/Setup: 
 
 ```bash
-python3 -m venv venv # Create virtual environment
-source venv/bin/activate # Activate virtual environment
+python3 -m venv .venv # Create virtual environment
+source .venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries 
 ```
 
@@ -52,85 +120,129 @@ Start:
 python Scripts/app.py # Start the application
 ```
 
-> Note: If you get a Tkinter error, install Python from [python.org](https://www.python.org/downloads/) or via Homebrew (`brew install python-tk`), as the built-in macOS Python may lack Tk support.
 
+### 3. Flashing the Teensy
 
-#### Linux (Debian / Ubuntu)
-
-Installation of required system libraries (Tkinter, PortAudio, MIDI build tools):
-
-```bash
-sudo apt update 
-sudo apt install python3-venv python3-tk libportaudio2 build-essential libasound2-dev 
-# Info: In Linux you may have to install underlying system libraries (i.e. 'PortAudio', bc 'sounddevice' in 'requirements.txt' is only a wrapper of 'PortAudio'). On Windows and macOS these system libraries are usually automatically included in the packages.
-```
-
-Setup:
-
-```bash
-python3 -m venv venv # Create virtual environment
-source venv/bin/activate # Activate virtual environment
-pip install -r requirements.txt # Install required python libraries
-```
-
-Start:
-
-```bash
-python Scripts/app.py # Start the application
-```
-
+Before the Teensy Audio Module can be used (described in [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module)), the code in `Scripts-Teensy/` has to be flashed to the Teensy with the [Arduino IDE](https://www.arduino.cc/en/software) (with the [Teensyduino add-on](https://www.pjrc.com/teensy/td_download.html)). This also has to be repeated after every change in `Scripts-Teensy/`.
 
 ## Usage
 
-### Usage Option 1: Connected to the *Teensy Audio Module*:
+### Usage Option 1: Connected to the Teensy Audio Module:
 
-Important Info:
-Currently the *Teensy Audio Module* is in a prototype state. So please consult Flo, before using it for the first time. ([Contact](#contact))
+Steps:
 
-Besides that, see the Steps for Usage Option 1:
-1. Ensure, that the Battery (LiPo) is connected to the amplifier and therefore the speaker. Ensure also that the Battery is loaded (Full: 4.2 V, Half-Full: 3.7 V, Needs to be loaded: 3.2 V).  
-2. Connect your Local Device to the Teensy Audio Module via USB. 
-3. Start the Python Application on your Local Device  and ensure that the connection to the Teensy is indicated in the field `COM-Port`. 
+1. IMPORTANT (RISK OF DAMAGING COMPONENTS): Ensure, that the Battery (LiPo) is connected to the amplifier and therefore the speaker. If not connected, parasitic powering effects can occur which can damage the amplifier/speaker. Ensure also that the Battery is loaded (Full: 4.2 V, Half-Full: 3.7 V, Minimum Voltage the Battery should have: 3.2 V). 
+2. Connect your Local Device to the Teensy Audio Module via USB.
+3. Start the Python Application on your Local Device and ensure that the connection to the Teensy is indicated in the field `Serial Connection`.
 4. Play sound.
 
 How it works:
-The GUI Application sends messages via USB Serial to the Teensy. The messages are in string format (`voiceId,carrierHz,modHz,volumePct,modDepthPct\\n`, see `protocol.py`). The Teensy receives the messages, handles them and synthesizes sound using the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
+The GUI Application sends messages via USB Serial to the Teensy. The messages are in string format (see `Scripts/playback/teensy/protocol.py`). The Teensy receives the messages, handles them and synthesizes sound using the Teensy Audio Library.
 
 ### Usage Option 2: Not connected to the *Teensy Audio Module*:
+
 Steps:
+
 1. Start the Python Application on your Local Device
 2. Play sound.
 
 How it works: 
-While not being connected to the Audio Module, the python libraries `sounddevice` and `numpy` are used for Sound Synthesis. I adjusted the configuration options so that every possible configuration in the GUI should also be feasable to implement with the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html). So you can also play around with sounds when youre not able to connect to the Audio Module (i.e. when you can not come to the Lab).
+While not being connected to the Audio Module, your local device takes care of the sound synthesis utilizing the python libraries `sounddevice` and `numpy`.
 
 ### Usage of MIDI Keyboard:
 
 Connect MIDI-Keyboard to your local device , then you will be able to connect it in the GUI indicated in the field `MIDI-Port`.
 
 
-## Project Structure
+## Code
 
-```
-exports/                -   Exported specs for Teensy (JSON + Markdown)
-Scripts/
-  app.py                -   Application entry point
-  gui.py                -   CustomTkinter GUI interface
-  engines/              -   FM engine and shared DSP helpers
-  audio_engine.py       -   LocalAudioEngine (sounddevice stream + FmEngine)
-  synth_mode_presets.py -   Presets for FM synthesis
-  setup_store.py        -   Save/load/export synth setups
-  serial_client.py      -   Serial port communication (Teensy)
-  protocol.py           -   Package definition/builder for Teensy communication
-  config_store.py       -   Load/save config.json settings
-  midi_input.py         -   MIDI keyboard input handling
-  synth_state.py        -   Object definition of synth state objects
-  fm_utils.py           -   FM utilities (e.g. compute_modulator_hz)
-  safety_limits.py      -   Safety limits and value clamping
-setups/                 -   Saved setups (JSON)
-visuals/                -   Visuals
-config.json             -   Config of latest GUI settings (to load last applied settings)
-requirements.txt        -   Python modules needed to use this application
+### Project Structure
+
+#### Top level
+
+| Folder or File     | Purpose                                                                                                                                                                                                           |
+| :----------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `exports/`         | Contains exported synth setups as .json and .md triggered by "Export" button in the GUI. Basically same functionality as "Save" in the Setup panel but with automatic timestamps and an additional markdown file. |
+| `helper_scripts/`  | Helper programs (e.g. for converting a .wav to a .h file), not part of the running application.                                                                                                                   |
+| `Scripts/`         | The Python application (GUI, synth logic, sound output, conlang, storage).                                                                                                  |
+| `Scripts-Teensy/`  | Firmware for the Teensy 4.1 (Arduino/Teensyduino sketch). Must be flashed to the Teensy separately, it is not run by the Python app.                                                                              |
+| `setups-synth/`    | Saved synth setups as .json (written by the Setup panel in the GUI). `Default.json` and the `Setup-*.json` files are example setups.                                                                              |
+| `visuals/`         | Visuals used in this README (GUI screenshot, hardware setup, signal path `Setup-Teensy_Audio_Library.png`).                                                                                                                            |
+| `wavetables`       | Example wavetables to play around with wavetable synthesis.                                                                                                                                                       |
+| `.gitignore`       | Files that stay out of git (virtual environment, `config-gui.json`, wavetable source files, ...).                                                                                                                 |
+| `config-gui.json`  | Last used GUI settings (serial port, MIDI port, sliders, ...).                                                                                                                                                    |
+| `requirements.txt` | Python packages needed by the application.                                                                                                                                                                        |
+
+#### `Scripts/` (Code for Python Application)
+
+| Folder or File                        | Purpose                                                                                                                                                                                                                                                                                                                         |
+| :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `conlang`                             | Contains functionality regarding constructed language.                                                                                                                                                                                                                                                                          |
+| `conlang/conlang_lexicon.py`          | Vocabulary of the constructed language: phonemes, lexemes (words), utterances (phrases). **Add new conlang elements here.**                                                                                                                                                                                                   |
+| `conlang/conlang_utterance_player.py` | Turns utterances into timed events (note on, retune, note off) and schedules them.                                                                                                                                                                                                                                              |
+| `gui/`                                | Contains functionality regarding the GUI.                                                                                                                                                                                                                                                                                       |
+| `gui/panels/`                         | One module per GUI area: `connection_panel` (serial, MIDI, local audio), `display_panel` (current values, last packet), `keyboard_panel` (on-screen and PC keyboard), `conlang_panel`, `sound_panel` (volume, presets, contains `fm_panel`, `lfo_panel`, `filter_panel`), `setup_panel` (save/load/export setups), `log_panel`. |
+| `gui/gui.py`                          | Main window (`SynthApp`). Only builds the panels and wires them to the controller.                                                                                                                                                                                                                                              |
+| `gui/midi_input.py`                   | MIDI keyboard input via `mido` (python library). Converts MIDI notes to frequencies.                                                                                                                                                                                                                                            |
+| `gui/synth_controller.py`             | Application logic without widget code: note lifecycle, reaction to parameter changes, presets, applying setups, saving the config. Updates the GUI through a `ControllerView` interface.                                                                                                                                        |
+| `gui/widgets.py`                      | Shared widget helpers, e.g. slider plus entry field, value blocks.                                                                                                                                                                                                                                                              |
+| `playback/`                           | Contains functionality regarding audio playback.                                                                                                                                                                                                                                                                                |
+| `playback/local/engines/base.py`      | Shared constants (sample rate, block size) and DSP helpers (envelope, clipping).                                                                                                                                                                                                                                                |
+| `playback/local/engines/fm_engine.py` | FM synthesis on local device (voices, modulator, envelope) calculated and handled with `sounddevice` and `numpy`.                                                                                                                                                                                                                 |
+| `playback/local/audio_engine.py`      | Manages the `sounddevice` (python library) output stream for local playback and hands the audio calculation to the FM engine.                                                                                                                                                                                                   |
+| `playback/teensy/protocol.py`         | Builds the text packets sent to the Teensy (note on/off, LFO, filter, LFO table). Format is documented at the top of the file.                                                                                                                                                                                                  |
+| `playback/teensy/serial_client.py`    | USB serial connection to the Teensy: connecting, voice slot allocation, sending packets, auto-reconnect watchdog (finds the Teensy again via its USB serial number).                                                                                                                                                            |
+| `playback/output_router.py`           | Decides where an event goes: Teensy if connected, otherwise local sound engine, otherwise only the log.                                                                                                                                                                                                                         |
+| `storage/`                            | Contains functionality to memorize the last configured gui and synth setup config.                                                                                                                                                                                                                                              |
+| `storage/config_store.py`             | Loads and saves `config-gui.json` (`AppConfig`).                                                                                                                                                                                                                                                                                |
+| `storage/setup_store.py`              | Saves, loads and exports setups (`setups-synth/`, `exports/`).                                                                                                                                                                                                                                                                  |
+| `synth/`                              | The synthesizer's state and rules, independent of GUI and sound output.                                                                                                                                                                                                                                                         |
+| `synth/fm_utils.py`                   | Helper to compute the modulator frequency ("Fix Hz" or "Ratio" to the carrier).                                                                                                                                                                                                                                                 |
+| `synth/lfo_waveform.py`               | LFO waveform presets and the editable waveform. Builds the 256-sample LFO table that is uploaded to the Teensy.                                                                                                                                                                                                                 |
+| `synth/safety_limits.py`              | All limits (volume, frequencies, depth, filter, ...) and `clamp_*` functions.                                                                                                                                                                                                                                                   |
+| `synth/synth_mode_presets.py`         | FM presets selectable in the GUI.                                                                                                                                                                                                                                                                                               |
+| `synth/synth_state.py`                | class `SynthState`: all current parameters (voices, volume, FM, LFO, filter, ...) and PC keyboard mapping.                                                                                                                                                                                                                       |
+| `synth/waveforms.py`                  | Carrier waveform names and their IDs. IDs 0-3 match objects of the Teensy Audio Library, 4 is the wavetable on the Teensy.                                                                                                                                                                                                      |
+| `app.py`                              | Entry point. Calls `run_app()` from `gui/gui.py`.                                                                                                                                                                                                                                                                               |
+
+#### Scripts-Teensy/ (Firmware Code for Teensy)
+
+| Folder or File | Purpose |
+| :--- | :--- |
+| `AudioLfo.h` | Own Teensy Audio Library object: LFO that plays the table uploaded from the GUI. |
+| `AudioWavetable.h` | Own Teensy Audio Library object: wavetable oscillator with morphing between waveforms. |
+| `CustomWavetable.h` | Generated wavetable data (created by `helper_scripts/wav_to_c_header.py`). Do not edit by hand. |
+| `teensy_synth.ino` | Main sketch: 8-voice FM/wavetable synthesizer. Reads packets from USB serial, outputs audio over I2S, controls the amplifier shutdown pin (23). The signal path is described at the top of the file and in `visuals/Setup-Teensy_Audio_Library.png`. |
+
+#### `helper_scripts/`
+
+| Folder or File       | Purpose                                                              |
+| :------------------- | :------------------------------------------------------------------- |
+| `wav_to_c_header.py` | Converts a `.wav` wavetable into `Scripts-Teensy/CustomWavetable.h`. |
+
+
+### Conlang Functionality
+
+A small constructed language (conlang) can be played. Vocabulary lives in `Scripts/conlang/conlang_lexicon.py`. Playback is compiled and scheduled in `Scripts/conlang/conlang_utterance_player.py` and played on its own synth voice (`conlang:0`).
+
+#### Building blocks
+
+- **Phoneme**: one sound (`_beep`, `_glide` or `_warble`).
+- **Lexeme**: a word, a sequence of phonemes (e.g. `hello`, `human`, `yes`).
+- **Utterance**: a phrase, a sequence of lexemes (e.g. `greet_human` = "Hallo, Mensch").
+
+To add a word, add a `Lexeme` to the `LEXEMES` dict. To add a phrase, add an `Utterance` to `UTTERANCES`. Timing constants (word gap, glide step, warble depth) are at the top of the two conlang files.
+
+#### Playback
+
+```mermaid
+flowchart LR
+  utterance["Utterance (lexeme ids)"] --> compile["compile_utterance()"]
+  compile --> events["TimedEvents"]
+  events --> player["UtterancePlayer (schedules via Tkinter after)"]
+  player --> panel["ConlangPanel callbacks"]
+  panel --> synth["SynthController: note_on..."]
+
 ```
 
 ## IDE Setup 
@@ -157,24 +269,67 @@ To ensure *clangd* correctly resolves hardware libraries (like `<Arduino.h>`), f
 
 
 
-## More Notes
+### Information about Teensy Audio Library
 
-Current Setup: Frequency Modulation (8 Note polyphonic input)
+#### Teensy Audio Library Setup
 
-![Teensy Audio Library Setup](visuals/FM-Setup-polyphone.png)
+Current Setup: 8 Voice polyphonic FM or wavetable synth with LFO oscillator and Filter, see here:
 
-- AudioSynthWaveform (Modulator) => Modulation frequency you can adjust in the GUI via the slider.
-- AudioSynthWaveform (Carrier) => Input through Local Device or MIDI-Keyboard. Frequencies are adjustable in the GUI.
-- AudioEffectEnvelope => DAHDSR (Delay, Attack, Hold, Decay, Sustain, Release) envelope
-- AudioMixer4 => Combining up to 4 signals together
-- AudioAmplifier => Amplifies or attentuates a signal 
-- AudioOutputI2S2 => Audio output (I2S on Port 2)
+![Teensy Audio Library Setup](visuals/Setup-Teensy_Audio_Library.png)
 
-For more detailed information, refer to the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
+#### Description of the Audio Objects
 
+Brief description of the TAL objects used in this setup.
+
+| Audio Object<br>`[Teensy Audio Library Object Name]_([Name of the variable in teensy_synth.ino])` | Purpose                                                                                                                                                                                                                     |
+| :--------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AudioSynthWaveformSine_(modulator)`                                                           | Modulation frequency as sinus waveform with configurable frequency.                                                                                                                                                         |
+| `AudioSynthWaveformModulated_(carrier)`                                                        | Carrier frequency. Waveform choosable: 'sine', 'saw', 'square', 'triangle'. Choosing 'wavetable stored on Teensy' switches the synthesis mode from FM to wavetable.                                                         |
+| `AudioWavetable_(wavetable)`                                                                   | Audio source that is activated, if 'wavetable stored on Teensy' is chosen as carrier waveform in the GUI. Slider of 'Modulation Depth' switches to 'Morph'. Therefore the morph of the wavetable synthesis can be adjusted. |
+| `AudioMixer4_(source_mixer)`                                                                   | Mixer object to enable switching between FM and wavetable synthesis.                                                                                                                                                        |
+| `AudioEffectEnvelope_(envelope)`                                                               | Envelope object (Delay, Attack, Hold, Decay, Sustain, Release).                                                                                                                                                             |
+| `AudioMixer4_(voice_mixer_[a/b])`                                                              | Mixer object that handles routing of the voices that are played. This object exists only with 4 inputs atm, therefore this setup uses 2 of them to enable 8 voice polyphonic sound synthesis.                               |
+| `AudioMixer4_(sum_mixer)`                                                                      | Mixer object to generate a mono signal out of the 2 inputs.                                                                                                                                                                 |
+| `AudioLFO_(lfo)`                                                                               | Custom AudioStream object to enable LFO functionality, defined in Scripts-Teensy/AudioLfo.h. It modulates the cutoff frequency of global_filter.                                                                            |
+| `AudioFilterStateVariable_(global_filter)`                                                     | Lowpass filter with configurable cutoff frequency and resonance (Q).                                                                                                                                                        |
+| `AudioAmplifier_(volume_amp)`                                                                  | Amplifies or attenuates the signal.                                                                                                                                                                                        |
+| `AudioOutputI2S2_(i2s2_output)`                                                                | Audio output (I2S on port 2). If you change the wire setup, e.g. you want to use I2S on port 1 of the Teensy, you have to change to AudioOutputI2S.                                                                         |
+
+For more detailed information on the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html), refer to the documentation.
+
+### Notes for continuing the project
+
+- **Python and firmware share a protocol.** The packet formats are documented in `Scripts/playback/teensy/protocol.py` and at the top of `Scripts-Teensy/teensy_synth.ino`. If you change one side, change the other and flash the Teensy again.
+- **Every sound feature needs two implementations**: one for the Teensy and one for local playback (`playback/local/engines/fm_engine.py`). Currently the LFO, the filter and the wavetable carrier only exist on the Teensy. That's because [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module) uses the Teensa Audio Library for sound synthesis while [Usage Option 2](#usage-option-2-not-connected-to-the-teensy-audio-module) uses python libraries.
+- **New parameters** are best added by following an existing one, e.g. `filter_cutoff_hz`. Search for it to see every place that has to be touched (limits, state, config, GUI, protocol).
+
+
+## Hardware Setup
+
+### Components
+| Microcontroller | Amplifier | LiPo Charging Module | Battery | Loudspeaker |
+|:------------------------:|:-----------------------:|:----------------------------:|:-----------------------------:|:-------------------------:|
+| Teensy 4.1      | MAX98357A | Soldered Li-Ion Charger With Protection [Link](https://github.com/SolderedElectronics/Li-ion-charger-with-protection-hardware-design) | Akyga LP753636 3.7V 1000mAh DC2509  | Visaton FRWS 5 4Ohm Impedanz |
+=======
+
+### Pinout
+
+|        |        Teensy 4.1        |        Amplifier        |        Li-Ion Charger        |        Lipo 1S Battery        |        Loudspeaker        |
+|:------:|:------------------------:|:-----------------------:|:----------------------------:|:-----------------------------:|:-------------------------:|
+| USB 5V |        Micro USB Port    |                         |                              |                               |                           | 
+|        |        Pin 2 (OUT2)      |         DIN             |                              |                               |                           |
+|        |        Pin 3 (LRCLK2)    |         LRC             |                              |                               |                           |
+|        |        Pin 4 (BCLK2)     |         BCLK            |                              |                               |                           |
+|        |        Pin 23            |         SD              |                              |                               |                           |
+|        |        GND               |         GND             |        OUT-                  |                               |                           |
+|        |                          |         Vin             |        OUT+                  |                               |                           |
+|        |                          |                         |        BAT+                  |        + (Red)                |                           |
+|        |                          |                         |        BAT-                  |        - (Black)              |                           |
+|        |                          |         +               |                              |                               |         +                 |
+|        |                          |         -               |                              |                               |         -                 |
+  
 
 
 ## Contact
-E-Mail: [st200539@stud.uni-stuttgart.de](mailto:st200539@stud.uni-stuttgart.de)
 
-Microsoft Teams: [florian.purschke@ms.informatik.uni-stuttgart.de](mailto:florian.purschke@ms.informatik.uni-stuttgart.de)
+E-Mail: [florianpurschke28@gmail.com](mailto:florianpurschke28@gmail.com)
