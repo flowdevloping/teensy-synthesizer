@@ -1,11 +1,15 @@
 # Audio Module for Sonic HRI Project
 
-This repository contains information and documentation for Teensy Audio Module for the Sonic HRI Project.
+This repository contains information and documentation for Teensy Audio Module for the Sonic HRI Project. 
 
 Usage is possible either 
 - while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the audio module
 - or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
-It is also possible to use a MIDI keyboard as input device. 
+It is also possible to use a MIDI keyboard as input device.
+
+It is recommended to read through the whole README once, before starting. **Especially** make sure you read through 'Getting Started', 'Usage' and 'Hardware-Setup' before using the physical audio module.
+
+
 
 >Tested with Python 3.12
 
