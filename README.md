@@ -11,8 +11,6 @@ It is recommended to read through the whole README once, before starting. **Espe
 
 
 
->Tested with Python 3.12
-
 Outline: 
 - [Images](#images)
 - [Getting Started](#getting-started)
@@ -50,6 +48,8 @@ git clone https://github.tik.uni-stuttgart.de/st200539/audio-module-project.git
 ```
 
 ### 2. Installation/Setup:
+
+> Tested with Python 3.12.
 
 Make sure you are located at the project directory:
 
