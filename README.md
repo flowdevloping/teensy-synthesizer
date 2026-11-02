@@ -245,6 +245,29 @@ flowchart LR
 
 ```
 
+## IDE Setup 
+
+### Language Servers
+To enable features like code navigation, type tooltips and syntax checking, configure the following language servers in your IDE: 
+
+### Python:
+* **Language Server:** *Pylance* (or *Pyright*)
+
+In my case (VSCode) that worked right away. Python language servers were configurable straight forward in the settings.
+
+### C++
+* **Language Server:** *clangd*
+  
+To ensure *clangd* correctly resolves hardware libraries (like `<Arduino.h>`), follow these steps to set up your environment:
+1. **Generate the Compilation Database:**
+   Run the following command in your project root to generate the `compile_commands.json` file:
+   ```bash
+   arduino-cli compile --fqbn teensy:avr:teensy41 --only-compilation-database firmware/teensy_synth
+2. Configure `clangd`:
+   Create a local file named exactly `.clangd` in your project root. You can use the provided `.clangd.example.yaml` as a template and adjust the paths to match your local toolchain installation.
+
+
+
 
 ### Information about Teensy Audio Library
 
@@ -287,6 +310,7 @@ For more detailed information on the [Teensy Audio Library](https://www.pjrc.com
 | Microcontroller | Amplifier | LiPo Charging Module | Battery | Loudspeaker |
 |:------------------------:|:-----------------------:|:----------------------------:|:-----------------------------:|:-------------------------:|
 | Teensy 4.1      | MAX98357A | Soldered Li-Ion Charger With Protection [Link](https://github.com/SolderedElectronics/Li-ion-charger-with-protection-hardware-design) | Akyga LP753636 3.7V 1000mAh DC2509  | Visaton FRWS 5 4Ohm Impedanz |
+=======
 
 ### Pinout
 
@@ -304,6 +328,7 @@ For more detailed information on the [Teensy Audio Library](https://www.pjrc.com
 |        |                          |         +               |                              |                               |         +                 |
 |        |                          |         -               |                              |                               |         -                 |
   
+
 
 ## Contact
 
