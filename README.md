@@ -30,7 +30,41 @@ Outline:
 
 ## Images:
 
-![Screenshot of the GUI](visuals/GUI.png)
+<table>
+  <tr>
+    <td colspan="2" valign="top">
+      <img src="visuals/GUI.png" alt="Screenshot of the GUI" width="100%">
+      <br><sub>Main window: connection, current values and keyboard</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="visuals/GUI-Synth.png" alt="Screenshot of the sound synthesis configuration" width="100%">
+      <br><sub>Sound synthesis configuration</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="visuals/GUI-LFO.png" alt="Screenshot of the LFO panel" width="100%">
+      <br><sub>LFO</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="visuals/GUI-Filter.png" alt="Screenshot of the filter panel" width="100%">
+      <br><sub>Filter cutoff and resonance</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="visuals/GUI-Conlang.png" alt="Screenshot of the conlang panel" width="100%">
+      <br><sub>Conlang functionality</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <img src="visuals/GUI-Storage.png" alt="Screenshot of the save/load setups panel" width="100%">
+      <br><sub>Save/Load setups</sub>
+    </td>
+  </tr>
+</table>
+
 ![Image of Setup: Teensy Audio Module, GUI and MIDI Keyboard](visuals/Setup-AM-and-MIDI_Keyboard.jpg)
 
 ## Getting Started
