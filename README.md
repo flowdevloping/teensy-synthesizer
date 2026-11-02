@@ -48,11 +48,13 @@ Outline:
     </td>
   </tr>
   <tr>
-    <td width="50%" valign="top">
+    <td colspan="2" valign="top">
       <img src="visuals/GUI-Filter.png" alt="Screenshot of the filter panel" width="100%">
       <br><sub>Filter cutoff and resonance</sub>
     </td>
-    <td width="50%" valign="top">
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
       <img src="visuals/GUI-Conlang.png" alt="Screenshot of the conlang panel" width="100%">
       <br><sub>Conlang functionality</sub>
     </td>
