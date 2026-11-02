@@ -2,6 +2,13 @@
 
 This repository contains information and documentation for Teensy Audio Module for the Sonic HRI Project.
 
+Usage is possible either 
+- while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the audio module
+- or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
+It is also possible to use a MIDI keyboard as input device. 
+
+>Tested with Python 3.12
+
 Outline: 
 - [Images](#images)
 - [Getting Started](#getting-started)
@@ -22,12 +29,6 @@ Outline:
   - [Pinout](#pinout)
 - [Contact](#contact)
 
-Usage is possible either 
-- while being connected to the Teensy Audio Module, synthesizing the sound on the Teensy and playing it via the audio module
-- or while not being connected to it, synthesizing the sound on your local device and playing it via your loudspeaker (Details: [Usage](#usage)). 
-It is also possible to use a MIDI keyboard as input device. 
-
->Tested with Python 3.12
 
 ## Images:
 
@@ -89,7 +90,7 @@ source .venv/bin/activate # Activate virtual environment
 pip install -r requirements.txt # Install required python libraries
 ```
 
-> Note: If connection to the serial port fails with something like "Permission denied" the current Linux user is probably no member of the group "dialout", which handles serial ports. To fix that run the following command to add the user to the group "dialout". Then close and reopen the terminal or even log out and back in again to apply the changes.
+> Note: If connection to the serial port fails with the error "Permission denied" or related to that, the current Linux user is probably no member of the group "dialout", which handles serial ports. To fix that run the following command to add the user to the group "dialout". Then close and reopen the terminal or even log out and back in again to apply the changes.
 
 ```bash
 sudo usermod -aG dialout "$USER"
@@ -119,11 +120,10 @@ Start:
 python Scripts/app.py # Start the application
 ```
 
-> Note: If you get a Tkinter error, install Python from [python.org](https://www.python.org/downloads/) or via Homebrew (`brew install python-tk`), as the built-in macOS Python may lack Tk support.
 
 ### 3. Flashing the Teensy
 
-Before the Teensy Audio Module can be used (see [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module)), the code in `Scripts-Teensy/` has to be flashed to the Teensy with the [Arduino IDE](https://www.arduino.cc/en/software) (with the [Teensyduino add-on](https://www.pjrc.com/teensy/td_download.html)). This also has to be repeated after every change in `Scripts-Teensy/`.
+Before the Teensy Audio Module can be used (described in [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module)), the code in `Scripts-Teensy/` has to be flashed to the Teensy with the [Arduino IDE](https://www.arduino.cc/en/software) (with the [Teensyduino add-on](https://www.pjrc.com/teensy/td_download.html)). This also has to be repeated after every change in `Scripts-Teensy/`.
 
 ## Usage
 
@@ -131,13 +131,13 @@ Before the Teensy Audio Module can be used (see [Usage Option 1](#usage-option-1
 
 Steps:
 
-1. Ensure, that the Battery (LiPo) is connected to the amplifier and therefore the speaker. Ensure also that the Battery is loaded (Full: 4.2 V, Half-Full: 3.7 V, Minimum Voltage the Battery should have: 3.2 V).
+1. IMPORTANT (RISK OF DAMAGING COMPONENTS): Ensure, that the Battery (LiPo) is connected to the amplifier and therefore the speaker. If not connected, parasitic powering effects can occur which can damage the amplifier/speaker. Ensure also that the Battery is loaded (Full: 4.2 V, Half-Full: 3.7 V, Minimum Voltage the Battery should have: 3.2 V). 
 2. Connect your Local Device to the Teensy Audio Module via USB.
 3. Start the Python Application on your Local Device and ensure that the connection to the Teensy is indicated in the field `Serial Connection`.
 4. Play sound.
 
 How it works:
-The GUI Application sends messages via USB Serial to the Teensy. The messages are in string format (see `Scripts/playback/teensy/protocol.py`). The Teensy receives the messages, handles them and synthesizes sound using the [Teensy Audio Library](https://www.pjrc.com/teensy/td_libs_Audio.html).
+The GUI Application sends messages via USB Serial to the Teensy. The messages are in string format (see `Scripts/playback/teensy/protocol.py`). The Teensy receives the messages, handles them and synthesizes sound using the Teensy Audio Library.
 
 ### Usage Option 2: Not connected to the *Teensy Audio Module*:
 
@@ -157,9 +157,6 @@ Connect MIDI-Keyboard to your local device , then you will be able to connect it
 ## Code
 
 ### Project Structure
-
-High level overview of all folders and files. `__init__.py` files (empty package markers) are left out.
-
 
 #### Top level
 
@@ -244,10 +241,9 @@ flowchart LR
   compile --> events["TimedEvents"]
   events --> player["UtterancePlayer (schedules via Tkinter after)"]
   player --> panel["ConlangPanel callbacks"]
-  panel --> synth["SynthController: note_on / retune_voice / note_off"]
-```
+  panel --> synth["SynthController: note_on..."]
 
-`retune` changes the frequency of a sounding tone without retriggering it. Glide and warble use it.
+```
 
 
 ### Information about Teensy Audio Library
@@ -281,7 +277,7 @@ For more detailed information on the [Teensy Audio Library](https://www.pjrc.com
 ### Notes for continuing the project
 
 - **Python and firmware share a protocol.** The packet formats are documented in `Scripts/playback/teensy/protocol.py` and at the top of `Scripts-Teensy/teensy_synth.ino`. If you change one side, change the other and flash the Teensy again.
-- **Every sound feature needs two implementations**: one for the Teensy and one for local playback (`playback/local/engines/fm_engine.py`). Currently the LFO, the filter and the wavetable carrier only exist on the Teensy.
+- **Every sound feature needs two implementations**: one for the Teensy and one for local playback (`playback/local/engines/fm_engine.py`). Currently the LFO, the filter and the wavetable carrier only exist on the Teensy. That's because [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module) uses the Teensa Audio Library for sound synthesis while [Usage Option 2](#usage-option-2-not-connected-to-the-teensy-audio-module) uses python libraries.
 - **New parameters** are best added by following an existing one, e.g. `filter_cutoff_hz`. Search for it to see every place that has to be touched (limits, state, config, GUI, protocol).
 
 
