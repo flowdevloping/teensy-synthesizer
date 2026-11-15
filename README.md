@@ -351,7 +351,7 @@ For more detailed information on the [Teensy Audio Library](https://www.pjrc.com
 ### Notes for continuing the project
 
 - **Python and firmware share a protocol.** The packet formats are documented in `Scripts/playback/teensy/protocol.py` and at the top of `Scripts-Teensy/teensy_synth.ino`. If you change one side, change the other and flash the Teensy again.
-- **Every sound feature needs two implementations**: one for the Teensy and one for local playback (`playback/local/engines/fm_engine.py`). Currently the LFO, the filter and the wavetable carrier only exist on the Teensy. That's because [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module) uses the Teensa Audio Library for sound synthesis while [Usage Option 2](#usage-option-2-not-connected-to-the-teensy-audio-module) uses python libraries.
+- **Every sound feature needs two implementations**: one for the Teensy and one for local playback (`playback/local/engines/fm_engine.py`). Currently the LFO, the filter and the wavetable carrier only exist on the Teensy. That's because [Usage Option 1](#usage-option-1-connected-to-the-teensy-audio-module) uses the Teensy Audio Library for sound synthesis while [Usage Option 2](#usage-option-2-not-connected-to-the-teensy-audio-module) uses python libraries.
 - **New parameters** are best added by following an existing one, e.g. `filter_cutoff_hz`. Search for it to see every place that has to be touched (limits, state, config, GUI, protocol).
 
 
