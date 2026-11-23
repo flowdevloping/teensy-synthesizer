@@ -36,7 +36,19 @@ Outline:
 ## Images:
 
 <details>
-<summary>GUI Screenshots</summary>
+<summary>Audio Module</summary>
+
+![Image of Audio Module without Case](visuals/AM-wo-Case.jpg)
+
+![Image of Audio Module with Case](visuals/AM-w-Case.jpg)
+
+![Image of Audio Module on the Robot](visuals/AM-on_Robot.jpg)
+
+</details>
+
+
+<details>
+<summary>Screenshots of the GUI</summary>
 
 <table>
   <tr>
@@ -77,12 +89,14 @@ Outline:
 
 </details>
 
+
 <details>
-<summary>Setup: Teensy Audio Module, GUI and MIDI Keyboard</summary>
+<summary>Setup during development</summary>
 
 ![Image of Setup: Teensy Audio Module, GUI and MIDI Keyboard](visuals/Setup-AM-and-MIDI_Keyboard.jpg)
 
 </details>
+
 
 ## Getting Started
 
